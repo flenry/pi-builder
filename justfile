@@ -75,6 +75,20 @@ ext-session-replay:
 ext-theme-cycler:
     pi -e extensions/theme-cycler.ts -e extensions/minimal.ts
 
+#g4
+
+# 17. Pi Setup: analyze and configure Pi for any project
+ext-pi-setup:
+    pi -e extensions/pi-setup.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
+
+# 18. Agent Builder: generate project-specific agent definitions
+ext-agent-builder:
+    pi -e extensions/agent-builder.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
+
+# 19. Full configurator: setup + agent builder together
+ext-configurator:
+    pi -e extensions/pi-setup.ts -e extensions/agent-builder.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
+
 # utils
 
 # Open pi with one or more stacked extensions in a new terminal: just open minimal tool-counter
@@ -105,3 +119,5 @@ all:
     just open damage-control minimal theme-cycler
     just open agent-chain theme-cycler
     just open pi-pi theme-cycler
+    just open pi-setup minimal theme-cycler
+    just open agent-builder minimal theme-cycler

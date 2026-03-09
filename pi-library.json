@@ -1,0 +1,314 @@
+{
+  "version": "1.0.0",
+  "description": "Pi extension, skill, MCP, and agent template library",
+
+  "extensions": {
+    "minimal": {
+      "path": "extensions/minimal.ts",
+      "description": "Compact footer with model name and 10-block context usage meter",
+      "tags": ["ui", "footer", "lightweight"],
+      "triggers": ["*"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "pure-focus": {
+      "path": "extensions/pure-focus.ts",
+      "description": "Strips all footer and status line UI for distraction-free mode",
+      "tags": ["ui", "minimal", "focus"],
+      "triggers": ["*"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "tool-counter": {
+      "path": "extensions/tool-counter.ts",
+      "description": "Rich two-line footer: model, context meter, tokens in/out, cost, cwd, git branch, tool call tally",
+      "tags": ["ui", "footer", "metrics", "cost"],
+      "triggers": ["*"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "tool-counter-widget": {
+      "path": "extensions/tool-counter-widget.ts",
+      "description": "Tool call counts displayed in a below-editor widget",
+      "tags": ["ui", "widget", "metrics"],
+      "triggers": ["*"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "purpose-gate": {
+      "path": "extensions/purpose-gate.ts",
+      "description": "Forces intent declaration before working — keeps the session focused on a single purpose",
+      "tags": ["workflow", "focus", "discipline"],
+      "triggers": ["*"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "tilldone": {
+      "path": "extensions/tilldone.ts",
+      "description": "Task-driven discipline — define tasks before working, tracks progress, nudges completion",
+      "tags": ["workflow", "tasks", "discipline", "persistence"],
+      "triggers": ["*"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "damage-control": {
+      "path": "extensions/damage-control.ts",
+      "description": "Safety rails — blocks dangerous bash commands, protects sensitive files, enforces read-only and no-delete paths",
+      "tags": ["safety", "production", "devops", "guardrails"],
+      "triggers": ["production", "deploy", "infrastructure", "cdk", "aws", "docker", "kubernetes"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"],
+      "requires": {
+        "piFiles": [".pi/damage-control-rules.yaml"],
+        "npmDeps": ["yaml"]
+      }
+    },
+    "system-select": {
+      "path": "extensions/system-select.ts",
+      "description": "Switch system prompt via /system command — picks from discovered agent definitions",
+      "tags": ["agents", "workflow", "personas"],
+      "triggers": ["*"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"],
+      "requires": {
+        "agentDefs": true
+      }
+    },
+    "agent-team": {
+      "path": "extensions/agent-team.ts",
+      "description": "Multi-agent orchestration — dispatcher delegates to specialist agents with grid dashboard",
+      "tags": ["agents", "orchestration", "multi-agent", "complex"],
+      "triggers": ["monorepo", "workspaces", "multi-service", "microservices", "complex"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"],
+      "requires": {
+        "piFiles": [".pi/agents/teams.yaml"],
+        "agentDefs": true
+      }
+    },
+    "agent-chain": {
+      "path": "extensions/agent-chain.ts",
+      "description": "Sequential pipeline orchestrator — agents execute in defined order with handoff",
+      "tags": ["agents", "orchestration", "pipeline", "sequential"],
+      "triggers": ["monorepo", "complex", "ci-cd", "pipeline"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"],
+      "requires": {
+        "piFiles": [".pi/agents/teams.yaml"],
+        "agentDefs": true
+      }
+    },
+    "cross-agent": {
+      "path": "extensions/cross-agent.ts",
+      "description": "Load commands from .claude/, .gemini/, .codex/ agent directories — cross-tool compatibility",
+      "tags": ["interop", "commands", "multi-tool"],
+      "triggers": [".claude", ".gemini", ".codex"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "theme-cycler": {
+      "path": "extensions/theme-cycler.ts",
+      "description": "Cycle themes with Ctrl+X/Ctrl+Q, pick with /theme — ships with 11 themes",
+      "tags": ["ui", "themes", "customization"],
+      "triggers": ["*"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"],
+      "requires": {
+        "piFiles": [".pi/themes/"]
+      }
+    },
+    "session-replay": {
+      "path": "extensions/session-replay.ts",
+      "description": "Scrollable timeline overlay of session history — review past turns interactively",
+      "tags": ["ui", "history", "review", "debugging"],
+      "triggers": ["*"],
+      "stackable": true,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "subagent-widget": {
+      "path": "extensions/subagent-widget.ts",
+      "description": "Spawn sub-agents with /sub <task> — live streaming progress widget",
+      "tags": ["agents", "sub-agent", "widget"],
+      "triggers": ["*"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"]
+    },
+    "pi-pi": {
+      "path": "extensions/pi-pi.ts",
+      "description": "Meta-agent that builds Pi extensions/agents with parallel expert research",
+      "tags": ["meta", "agents", "pi-development"],
+      "triggers": ["pi-development"],
+      "stackable": false,
+      "depends": ["extensions/themeMap.ts"],
+      "requires": {
+        "piFiles": [".pi/agents/pi-pi/"]
+      }
+    }
+  },
+
+  "skills": {
+    "bowser": {
+      "path": ".pi/skills/bowser.md",
+      "description": "Headless browser automation via Playwright CLI — UI testing, screenshots, scraping, parallel sessions",
+      "tags": ["testing", "ui", "scraping", "browser", "playwright"],
+      "triggers": ["react", "vue", "angular", "next", "nuxt", "svelte", "frontend", "playwright", "cypress", "ui-test"],
+      "setup": "npx playwright install chromium"
+    }
+  },
+
+  "mcps": {
+    "aws": {
+      "description": "AWS service interaction — CloudFormation, S3, Lambda, DynamoDB, etc.",
+      "tags": ["cloud", "infrastructure", "devops", "aws"],
+      "triggers": ["aws-cdk", "aws-sdk", "@aws-cdk", "@aws-sdk", "aws-lambda", "cloudformation", "sam", "amplify", "boto3", "cdk"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@anthropic/aws-mcp"],
+        "env": {
+          "AWS_PROFILE": "Your AWS profile name",
+          "AWS_REGION": "AWS region (e.g. us-east-1)"
+        }
+      }
+    },
+    "postgres": {
+      "description": "PostgreSQL database interaction — queries, schema inspection, migrations",
+      "tags": ["database", "sql", "postgres"],
+      "triggers": ["pg", "prisma", "drizzle", "knex", "postgresql", "typeorm", "sequelize"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@anthropic/postgres-mcp"],
+        "env": {
+          "DATABASE_URL": "PostgreSQL connection string"
+        }
+      }
+    },
+    "github": {
+      "description": "GitHub API — issues, PRs, repos, actions, code search",
+      "tags": ["git", "github", "ci-cd", "collaboration"],
+      "triggers": [".github", "github-actions", "octokit"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "GitHub PAT with repo scope"
+        }
+      }
+    },
+    "filesystem": {
+      "description": "Sandboxed filesystem access — read/write/search with path restrictions",
+      "tags": ["filesystem", "files"],
+      "triggers": ["*"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "{projectDir}"]
+      }
+    },
+    "memory": {
+      "description": "Persistent knowledge graph — store and retrieve entities, relations, observations across sessions",
+      "tags": ["memory", "knowledge", "persistence"],
+      "triggers": ["*"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"]
+      }
+    },
+    "puppeteer": {
+      "description": "Browser automation via Puppeteer — navigate, screenshot, interact with web pages",
+      "tags": ["browser", "testing", "scraping"],
+      "triggers": ["puppeteer", "browser", "scraping"],
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+      }
+    }
+  },
+
+  "agentTemplates": {
+    "scout": {
+      "path": ".pi/agents/scout.md",
+      "description": "Fast recon and codebase exploration — read-only",
+      "tags": ["recon", "exploration", "analysis"]
+    },
+    "planner": {
+      "path": ".pi/agents/planner.md",
+      "description": "Architecture and implementation planning — read-only",
+      "tags": ["architecture", "planning", "design"]
+    },
+    "builder": {
+      "path": ".pi/agents/builder.md",
+      "description": "Implementation and code generation",
+      "tags": ["implementation", "coding", "building"]
+    },
+    "reviewer": {
+      "path": ".pi/agents/reviewer.md",
+      "description": "Code review and quality checks",
+      "tags": ["review", "quality", "testing"]
+    },
+    "documenter": {
+      "path": ".pi/agents/documenter.md",
+      "description": "Documentation and README generation",
+      "tags": ["documentation", "readme", "docs"]
+    },
+    "red-team": {
+      "path": ".pi/agents/red-team.md",
+      "description": "Security and adversarial testing — find vulnerabilities",
+      "tags": ["security", "testing", "adversarial"]
+    },
+    "plan-reviewer": {
+      "path": ".pi/agents/plan-reviewer.md",
+      "description": "Plan critic — reviews, challenges, and validates implementation plans",
+      "tags": ["review", "planning", "validation"]
+    },
+    "bowser": {
+      "path": ".pi/agents/bowser.md",
+      "description": "Headless browser automation agent using Playwright CLI",
+      "tags": ["browser", "testing", "automation"]
+    }
+  },
+
+  "themes": {
+    "path": ".pi/themes/",
+    "available": [
+      "catppuccin-mocha", "cyberpunk", "dracula", "everforest", "gruvbox",
+      "midnight-ocean", "nord", "ocean-breeze", "rose-pine", "synthwave", "tokyo-night"
+    ]
+  },
+
+  "presets": {
+    "essential": {
+      "description": "Core UI + safety — good starting point for any project",
+      "extensions": ["tool-counter", "theme-cycler", "damage-control"],
+      "justfileRecipes": {
+        "pi": "pi",
+        "pi-safe": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts -e .pi/extensions/damage-control.ts"
+      }
+    },
+    "focused": {
+      "description": "Disciplined workflow — purpose declaration + task tracking",
+      "extensions": ["purpose-gate", "minimal", "theme-cycler"],
+      "justfileRecipes": {
+        "pi-focused": "pi -e .pi/extensions/purpose-gate.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts"
+      }
+    },
+    "team": {
+      "description": "Multi-agent orchestration with specialist dispatch",
+      "extensions": ["agent-team", "theme-cycler"],
+      "justfileRecipes": {
+        "pi-team": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts"
+      }
+    },
+    "full": {
+      "description": "Everything — all extensions available via justfile recipes",
+      "extensions": ["tool-counter", "theme-cycler", "damage-control", "system-select", "tilldone", "session-replay", "cross-agent"],
+      "justfileRecipes": {
+        "pi": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-safe": "pi -e .pi/extensions/damage-control.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-focus": "pi -e .pi/extensions/purpose-gate.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-tasks": "pi -e .pi/extensions/tilldone.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-team": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-chain": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-system": "pi -e .pi/extensions/system-select.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts"
+      }
+    }
+  }
+}
