@@ -1,138 +1,97 @@
-# Pi Pi — Meta Agent Spec
+# Pi Pi — One-Command Pi Builder
 
 ## Purpose
 
-A Pi extension that builds Pi agents. The "Pi Pi" agent is a meta-agent — it knows how to create extensions, themes, skills, settings, prompt templates, and TUI components by querying a team of domain-specific research agents in parallel.
+Run one command → Pi Pi auto-analyzes the repo → queries domain experts in parallel → builds a complete, tailored Pi configuration (extensions, skills, agents, themes, settings, justfile).
+
+## Usage
+
+```bash
+pi -e extensions/pi-pi.ts
+```
+
+That's it. On session start, Pi Pi:
+1. Scans the repo (languages, frameworks, build tools, infra, CI, existing `.pi/` config)
+2. Matches against the extension library (`pi-library.json`)
+3. Sends the analysis as an auto-prompt to the orchestrator
+4. The orchestrator reads key project files, queries experts in parallel, then builds everything
 
 ## Architecture
 
 ```
-User Request: "Build me a Pi agent that does X"
-        │
-        ▼
+Session Start
+    │
+    ▼
 ┌──────────────────────────────────┐
-│  Primary Agent ("Pi Pi")         │
+│  analyzeProject()                │
+│  Scan: package.json, go.mod,    │
+│  Dockerfile, CI, README, etc.   │
+│  Match: pi-library.json scores  │
+└──────┬───────────────────────────┘
+       │ auto-inject via pi.sendUserMessage()
+       ▼
+┌──────────────────────────────────┐
+│  Orchestrator ("Pi Pi")          │
 │  Tools: read,write,edit,bash,    │
 │         grep,find,ls,            │
-│         query_expert             │
-│  Role: WRITER — gathers info    │
-│  from experts, then builds       │
+│         query_experts            │
+│                                  │
+│  1. Reads key project files      │
+│  2. Queries experts in parallel  │
+│  3. Copies library extensions    │
+│  4. Creates custom extensions    │
+│  5. Writes justfile, settings    │
 └──────┬───────────────────────────┘
-       │ query_expert (parallel)
-       ├──────────────────────────┐──────────────────────┐──────────────────────┐──────────────────────┐
-       ▼                         ▼                      ▼                      ▼                      ▼
-┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ ext-expert  │  │ theme-expert │  │ skill-expert │  │ config-expert│  │  tui-expert  │
-│ Extensions  │  │ Themes       │  │ Skills       │  │ Settings     │  │  TUI/UI      │
-│ Tools, cmds │  │ JSON format  │  │ SKILL.md     │  │ Providers    │  │  Components  │
-│ Events, API │  │ Color tokens │  │ Frontmatter  │  │ Models       │  │  Rendering   │
-│             │  │ Hot reload   │  │ Directories  │  │ Packages     │  │  Keyboard    │
-│ read-only   │  │ read-only    │  │ read-only    │  │ read-only    │  │  read-only   │
-└─────────────┘  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
+       │ query_experts (parallel)
+       ▼
+┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
+│ext-     │theme-   │skill-   │config-  │tui-     │prompt-  │agent-   │keybind- │cli-     │
+│expert   │expert   │expert   │expert   │expert   │expert   │expert   │expert   │expert   │
+└─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
 ```
 
-## Flow
+## What It Builds
 
-1. User asks the primary Pi Pi agent to build something
-2. Primary agent identifies which domains are relevant
-3. Primary dispatches `query_expert` calls in PARALLEL to all relevant experts
-4. Each expert:
-   a. Uses `/skill:firecrawl` to scrape fresh Pi documentation for their domain
-   b. Searches the local codebase for existing patterns and examples
-   c. Returns structured research findings
-5. Primary agent receives ALL expert responses
-6. Primary agent synthesizes the information and WRITES the actual files
+### From the Library (copy)
+- Extensions: minimal, tool-counter, theme-cycler, damage-control, tilldone, etc.
+- Skills: bowser (for frontend projects)
+- Agent templates: scout, planner, builder, reviewer, documenter, red-team
+- Themes: 11 pre-built themes
+- themeMap.ts (dependency of most extensions)
 
-## Expert Agents
+### Custom (generated per-repo)
+- **Project-specific extensions** with tools tailored to the codebase
+  - e.g., `run-tests` that knows the exact test command and interprets output
+  - e.g., `deploy` with the right flags for this project
+  - e.g., `before_agent_start` hook injecting project context
+- **Custom skills** for the project's domain
+- **Custom agent definitions** that know the architecture
+- **Justfile** with recipes for all extension combos
+- **CLAUDE.md** with Pi usage instructions
+- **.pi/settings.json** with sensible defaults
 
-### ext-expert (Extensions)
-- **Domain**: Pi extensions — custom tools, events, commands, shortcuts, flags, state management, custom rendering, overriding tools
-- **Doc URL**: `https://raw.githubusercontent.com/badlogic/pi-mono/refs/heads/main/packages/coding-agent/docs/extensions.md`
-- **Tools**: read,grep,find,ls,bash
-- **First action**: Fetch fresh extensions.md via firecrawl
+## Auto-Analysis
 
-### theme-expert (Themes)
-- **Domain**: Pi themes — JSON format, 51 color tokens, vars, hex/256-color values, hot reload
-- **Doc URL**: `https://raw.githubusercontent.com/badlogic/pi-mono/refs/heads/main/packages/coding-agent/docs/themes.md`
-- **Tools**: read,grep,find,ls,bash
-- **First action**: Fetch fresh themes.md via firecrawl
+The `analyzeProject()` function detects:
+- **Languages**: JS/TS, Python, Go, Rust, Java/Kotlin
+- **Frameworks**: React, Vue, Angular, Next.js, Express, Django, Flask, FastAPI, NestJS, etc.
+- **Build tools**: Make, just, Task, Gradle, CMake
+- **Infrastructure**: Docker, Kubernetes, Terraform, AWS CDK, Serverless
+- **CI/CD**: GitHub Actions, GitLab CI
+- **Databases**: PostgreSQL, MongoDB, Redis
+- **Testing**: Playwright, Cypress, Vitest, Jest, pytest
+- **Existing config**: `.pi/`, `.claude/`, `.gemini/`, `.cursor/`
+- **Monorepo detection**: multiple package.json/go.mod files
 
-### skill-expert (Skills)
-- **Domain**: Pi skills — SKILL.md format, frontmatter, directories, validation, /skill:name commands
-- **Doc URL**: `https://raw.githubusercontent.com/badlogic/pi-mono/refs/heads/main/packages/coding-agent/docs/skills.md`
-- **Tools**: read,grep,find,ls,bash
-- **First action**: Fetch fresh skills.md via firecrawl
+## Key Files
 
-### config-expert (Settings & Providers)
-- **Domain**: Pi settings, providers, models, packages, keybindings — settings.json, models.json, packages, enabledModels
-- **Doc URLs**: settings.md, providers.md, models.md, packages.md, keybindings.md
-- **Tools**: read,grep,find,ls,bash
-- **First action**: Fetch fresh settings.md + providers.md via firecrawl
+- `extensions/pi-pi.ts` — Main extension
+- `.pi/agents/pi-pi/pi-orchestrator.md` — Orchestrator system prompt
+- `.pi/agents/pi-pi/*.md` — 9 domain expert definitions
+- `pi-library.json` — Extension/skill/agent library registry
 
-### tui-expert (TUI Components)
-- **Domain**: Pi TUI — Component interface, Text, Box, Container, Markdown, Image, keyboard input, custom components, overlays, theming, SelectList, SettingsList, BorderedLoader, widgets, footers, editors
-- **Doc URL**: `https://raw.githubusercontent.com/badlogic/pi-mono/refs/heads/main/packages/coding-agent/docs/tui.md`
-- **Tools**: read,grep,find,ls,bash
-- **First action**: Fetch fresh tui.md via firecrawl
+## Commands
 
-## Extension Structure
-
-File: `extensions/pi-pi.ts`
-
-### Differences from agent-team.ts
-
-| Feature | agent-team | pi-pi |
-|---------|-----------|-------|
-| Primary tools | dispatch_agent ONLY | read,write,edit,bash,grep,find,ls + query_expert |
-| Subagent tools | varies per agent | read,grep,find,ls,bash (read-only + bash for firecrawl) |
-| Dispatch model | Sequential | Parallel (LLM calls query_expert N times) |
-| Subagent sessions | Persistent | Ephemeral (--no-session) |
-| System prompt | Generic dispatcher | Specialized meta-agent builder |
-| First prompt | None | Each expert fetches fresh docs on first query |
-
-### Tool: query_expert
-
-```typescript
-pi.registerTool({
-  name: "query_expert",
-  label: "Query Expert",
-  description: "Query a domain expert for Pi documentation and patterns. Experts research in parallel. Use multiple query_expert calls in one response for parallel research.",
-  parameters: Type.Object({
-    expert: Type.String({ description: "Expert name: ext-expert, theme-expert, skill-expert, config-expert, tui-expert" }),
-    question: Type.String({ description: "What to research — be specific about what you need to build" }),
-  }),
-})
-```
-
-### Widget
-
-Grid of expert cards showing:
-- Expert name and status (idle/researching/done/error)
-- Current question being researched
-- Elapsed time
-
-### Justfile Entry
-
-```just
-ext-pi-pi:
-    pi -e extensions/pi-pi.ts
-```
-
-## Agent Definition Files
-
-Located in `.pi/agents/`:
-- `ext-expert.md`
-- `theme-expert.md`
-- `skill-expert.md`
-- `config-expert.md`
-- `tui-expert.md`
-
-Teams entry in `.pi/agents/teams.yaml`:
-```yaml
-pi-pi:
-  - ext-expert
-  - theme-expert
-  - skill-expert
-  - config-expert
-  - tui-expert
-```
+- `/experts` — list experts and their status
+- `/experts-grid N` — set dashboard columns (1-5)
+- `/analyze` — re-run project analysis

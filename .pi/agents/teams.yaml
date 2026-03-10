@@ -29,3 +29,41 @@ pi-pi:
   - tui-expert
   - prompt-expert
   - agent-expert
+
+# ── Straw Hat Crews ──────────────────────────
+
+straw-hats:
+  - luffy
+  - zoro
+  - sanji
+  - robin
+  - usopp
+  - franky
+  - jinbe
+  - law
+  - vegapunk
+  - chopper
+  - nami
+  - benn-beckman
+
+dev-crew:
+  - zoro
+  - sanji
+  - usopp
+  - law
+  - vegapunk
+
+research-crew:
+  - robin
+  - benn-beckman
+  - vegapunk
+
+ops-crew:
+  - franky
+  - chopper
+  - jinbe
+
+quant-crew:
+  - benn-beckman
+  - robin
+  - nami

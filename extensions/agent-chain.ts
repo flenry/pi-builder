@@ -25,7 +25,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { spawn } from "child_process";
-import { readFileSync, existsSync, readdirSync, mkdirSync, unlinkSync } from "fs";
+import { readFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { applyExtensionDefaults } from "./themeMap.ts";
 
@@ -46,6 +46,7 @@ interface AgentDef {
 	name: string;
 	description: string;
 	tools: string;
+	model?: string;
 	systemPrompt: string;
 }
 
@@ -152,6 +153,7 @@ function parseAgentFile(filePath: string): AgentDef | null {
 			name: frontmatter.name,
 			description: frontmatter.description || "",
 			tools: frontmatter.tools || "read,grep,find,ls",
+			model: frontmatter.model || undefined,
 			systemPrompt: match[2].trim(),
 		};
 	} catch {
@@ -171,14 +173,23 @@ function scanAgentDirs(cwd: string): Map<string, AgentDef> {
 	for (const dir of dirs) {
 		if (!existsSync(dir)) continue;
 		try {
-			for (const file of readdirSync(dir)) {
-				if (!file.endsWith(".md")) continue;
-				const fullPath = resolve(dir, file);
-				const def = parseAgentFile(fullPath);
-				if (def && !agents.has(def.name.toLowerCase())) {
-					agents.set(def.name.toLowerCase(), def);
+			const scanDir = (d: string) => {
+				for (const entry of readdirSync(d)) {
+					const fullPath = resolve(d, entry);
+					try {
+						if (statSync(fullPath).isDirectory()) {
+							scanDir(fullPath);
+							continue;
+						}
+					} catch { continue; }
+					if (!entry.endsWith(".md")) continue;
+					const def = parseAgentFile(fullPath);
+					if (def && !agents.has(def.name.toLowerCase())) {
+						agents.set(def.name.toLowerCase(), def);
+					}
 				}
-			}
+			};
+			scanDir(dir);
 		} catch {}
 	}
 
@@ -334,9 +345,12 @@ export default function (pi: ExtensionAPI) {
 		stepIndex: number,
 		ctx: any,
 	): Promise<{ output: string; exitCode: number; elapsed: number }> {
-		const model = ctx.model
-			? `${ctx.model.provider}/${ctx.model.id}`
-			: "openrouter/google/gemini-3-flash-preview";
+		// Use agent-specific model if defined, otherwise fall back to parent's model
+		const model = agentDef.model
+			? agentDef.model
+			: ctx.model
+				? `${ctx.model.provider}/${ctx.model.id}`
+				: "openrouter/google/gemini-3-flash-preview";
 
 		const agentKey = agentDef.name.toLowerCase().replace(/\s+/g, "-");
 		const agentSessionFile = join(sessionDir, `chain-${agentKey}.json`);

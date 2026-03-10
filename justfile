@@ -67,7 +67,11 @@ ext-pi-pi:
 
 #ext
 
-# 15. Session Replay: scrollable timeline overlay of session history (legit)
+# 15. Scheduler: recurring and one-shot task scheduling within a session
+ext-scheduler:
+    pi -e extensions/scheduler.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
+
+# 16. Session Replay: scrollable timeline overlay of session history (legit)
 ext-session-replay:
     pi -e extensions/session-replay.ts -e extensions/minimal.ts
 
@@ -121,3 +125,28 @@ all:
     just open pi-pi theme-cycler
     just open pi-setup minimal theme-cycler
     just open agent-builder minimal theme-cycler
+# ── Crew Workflows ───────────────────────────────
+
+# Full crew dispatcher — Luffy routes to 12 specialists dynamically
+crew:
+    pi -e extensions/agent-team.ts -e extensions/theme-cycler.ts
+
+# Full TDD pipeline — Robin → Vegapunk → Usopp (tests) → Zoro (build) → Usopp (QA) → Law → Jinbe
+full-impl:
+    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+
+# Fast TDD — Robin → Usopp (tests) → Zoro (build) → Law
+fast-impl:
+    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+
+# Frontend TDD — Robin → Usopp (tests) → Sanji (build) → Usopp (QA) → Law
+frontend-impl:
+    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+
+# Deep multi-pass research — Robin → Benn Beckman → Vegapunk
+research:
+    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+
+# Quant analysis — Benn Beckman → Robin → Nami
+quant:
+    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts

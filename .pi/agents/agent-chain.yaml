@@ -47,3 +47,81 @@ full-review:
       prompt: "Implement this plan:\n\n$INPUT"
     - agent: reviewer
       prompt: "Review this implementation:\n\n$INPUT"
+
+# ── Crew Workflows ───────────────────────────────
+# TDD-first: Robin decomposes → Usopp writes failing tests → builder makes them pass
+# No orchestrator in chains — the chain IS the orchestration
+
+full-implementation:
+  description: "Complete TDD pipeline — research, plan review, tests first, implement, QA, code review, security audit"
+  steps:
+    - agent: robin
+      prompt: "Research and decompose this task into atomic, testable units. Break into chunks, then break each chunk into smaller tasks. Every task must have a clear test assertion:\n\n$INPUT"
+    - agent: vegapunk
+      prompt: "Review this task decomposition and implementation plan. Challenge assumptions, find gaps, check feasibility. Are the atomic tasks truly atomic? Are there missing edge cases? Approve or reject with specific feedback:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: usopp
+      prompt: "Write failing tests for EVERY atomic task in the approved plan. Tests should be comprehensive — cover happy paths, edge cases, and error scenarios. All tests MUST FAIL at this point (no implementation yet):\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: zoro
+      prompt: "Implement the solution. Make ALL the failing tests pass, one atomic task at a time. Follow existing patterns. Do not skip any test:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: usopp
+      prompt: "Run the full test suite. Validate every atomic task passes. Check for regressions. Report: total tests, passed, failed, coverage if available. If any fail, detail exactly what broke:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: law
+      prompt: "Code review the implementation. Check quality, patterns, correctness, maintainability. Are the tests good? Is the code clean? Approve or reject with specific feedback:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: jinbe
+      prompt: "Security audit. Check for vulnerabilities, input validation, secrets exposure, dependency risks. Summarize findings and create a PR summary:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+
+fast-implementation:
+  description: "Quick TDD build — research, tests first, implement, review"
+  steps:
+    - agent: robin
+      prompt: "Research and decompose this task into atomic, testable units. Break into chunks, then into smaller tasks. Every task must have a clear test assertion:\n\n$INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every atomic task in the plan. Cover happy paths and edge cases. All tests MUST FAIL:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: zoro
+      prompt: "Implement the solution. Make all failing tests pass. Follow existing patterns:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: law
+      prompt: "Review the implementation and tests for quality, correctness, and completeness:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+
+frontend-implementation:
+  description: "Frontend TDD — research, tests first, build UI, QA, review"
+  steps:
+    - agent: robin
+      prompt: "Research the frontend requirements and decompose into atomic, testable UI tasks. Break into chunks (components, interactions, states), then into smaller tasks:\n\n$INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every atomic UI task — component rendering, user interactions, edge cases, accessibility. All tests MUST FAIL:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: sanji
+      prompt: "Build the frontend. Make all failing tests pass. Follow the project's design system and existing patterns:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: usopp
+      prompt: "Run the full test suite. Validate all UI tasks pass. Check visual regressions, accessibility, responsive behavior:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: law
+      prompt: "Review the frontend code for quality, component patterns, and maintainability:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+
+deep-research:
+  description: "Multi-pass research — Robin decomposes, Benn Beckman validates, Vegapunk critiques"
+  steps:
+    - agent: robin
+      prompt: "Deep dive research on: $INPUT\n\nBreak the problem into sub-questions. For each: investigate, gather evidence, cite specific files and patterns."
+    - agent: benn-beckman
+      prompt: "Validate and stress-test this research. Check the data, challenge assumptions, find what's missing. Are the conclusions supported by evidence?\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: vegapunk
+      prompt: "Final architecture review. Is this analysis sound? What's the recommended path forward? Concrete next steps:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+
+security-audit:
+  description: "Full security review — Jinbe audits, Law validates, Robin finds mitigations"
+  steps:
+    - agent: jinbe
+      prompt: "Full security audit of: $INPUT\n\nCheck OWASP Top 10, input validation, secrets, dependencies, access controls. Rate each finding by severity."
+    - agent: law
+      prompt: "Review the security findings. Are they valid? Anything missed? Prioritize and classify:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: robin
+      prompt: "Research mitigations and best practices for each security issue. Provide actionable remediation steps with code examples:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+
+quant-analysis:
+  description: "Quantitative analysis — Benn Beckman analyzes, Robin researches context, Nami costs"
+  steps:
+    - agent: benn-beckman
+      prompt: "Quantitative analysis of: $INPUT\n\nProvide numbers: Sharpe, win rate, drawdown, profit factor. Assess market regime. Identify failure modes."
+    - agent: robin
+      prompt: "Research additional context — market conditions, macro events, comparable strategies:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: nami
+      prompt: "Cost and risk analysis. Position sizing? Capital at risk? Expected execution cost?\n\n$INPUT\n\nOriginal request: $ORIGINAL"
