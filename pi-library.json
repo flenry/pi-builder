@@ -647,7 +647,7 @@
       ],
       "justfileRecipes": {
         "pi": "pi",
-        "pi-safe": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts -e .pi/extensions/damage-control.ts"
+        "pi-safe": "pi -e .pi/ext/tool-counter.ts -e .pi/ext/theme-cycler.ts -e .pi/ext/damage-control.ts"
       }
     },
     "focused": {
@@ -658,7 +658,7 @@
         "theme-cycler"
       ],
       "justfileRecipes": {
-        "pi-focused": "pi -e .pi/extensions/purpose-gate.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts"
+        "pi-focused": "pi -e .pi/ext/purpose-gate.ts -e .pi/ext/minimal.ts -e .pi/ext/theme-cycler.ts"
       }
     },
     "team": {
@@ -668,7 +668,7 @@
         "theme-cycler"
       ],
       "justfileRecipes": {
-        "pi-team": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts"
+        "pi-team": "pi -e .pi/ext/agent-team.ts -e .pi/ext/theme-cycler.ts"
       }
     },
     "straw-hats": {
@@ -682,11 +682,11 @@
         "scheduler"
       ],
       "justfileRecipes": {
-        "pi": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts",
-        "crew": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts",
-        "full-impl": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts",
-        "fast-impl": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-safe": "pi -e .pi/extensions/damage-control.ts -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts"
+        "pi": "pi -e .pi/ext/tool-counter.ts -e .pi/ext/theme-cycler.ts",
+        "crew": "pi -e .pi/ext/agent-team.ts -e .pi/ext/theme-cycler.ts",
+        "full-impl": "pi -e .pi/ext/agent-chain.ts -e .pi/ext/theme-cycler.ts",
+        "fast-impl": "pi -e .pi/ext/agent-chain.ts -e .pi/ext/theme-cycler.ts",
+        "pi-safe": "pi -e .pi/ext/damage-control.ts -e .pi/ext/tool-counter.ts -e .pi/ext/theme-cycler.ts"
       }
     },
     "full": {
@@ -701,13 +701,13 @@
         "cross-agent"
       ],
       "justfileRecipes": {
-        "pi": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-safe": "pi -e .pi/extensions/damage-control.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-focus": "pi -e .pi/extensions/purpose-gate.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-tasks": "pi -e .pi/extensions/tilldone.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-team": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-chain": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts",
-        "pi-system": "pi -e .pi/extensions/system-select.ts -e .pi/extensions/minimal.ts -e .pi/extensions/theme-cycler.ts"
+        "pi": "pi -e .pi/ext/tool-counter.ts -e .pi/ext/theme-cycler.ts",
+        "pi-safe": "pi -e .pi/ext/damage-control.ts -e .pi/ext/minimal.ts -e .pi/ext/theme-cycler.ts",
+        "pi-focus": "pi -e .pi/ext/purpose-gate.ts -e .pi/ext/minimal.ts -e .pi/ext/theme-cycler.ts",
+        "pi-tasks": "pi -e .pi/ext/tilldone.ts -e .pi/ext/theme-cycler.ts",
+        "pi-team": "pi -e .pi/ext/agent-team.ts -e .pi/ext/theme-cycler.ts",
+        "pi-chain": "pi -e .pi/ext/agent-chain.ts -e .pi/ext/theme-cycler.ts",
+        "pi-system": "pi -e .pi/ext/system-select.ts -e .pi/ext/minimal.ts -e .pi/ext/theme-cycler.ts"
       }
     }
   }

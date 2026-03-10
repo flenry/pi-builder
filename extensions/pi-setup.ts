@@ -397,7 +397,7 @@ function getRecommendations(analysis: ProjectAnalysis, library: Library) {
 // ── Provisioning ─────────────────────────────────────────────────────────
 
 function provisionExtension(name: string, ext: LibraryExtension, libDir: string, projectDir: string): string[] {
-	const extDir = join(projectDir, ".pi", "extensions");
+	const extDir = join(projectDir, ".pi", "ext");
 	ensureDir(extDir);
 	const messages: string[] = [];
 
@@ -518,7 +518,7 @@ function generateJustfile(projectDir: string, selectedExtensions: string[], libr
 	lines.push("");
 
 	// Generate recipes for installed extensions
-	const extDir = ".pi/extensions";
+	const extDir = ".pi/ext";
 
 	// Standard combo: tool-counter + theme-cycler
 	if (selectedExtensions.includes("tool-counter") && selectedExtensions.includes("theme-cycler")) {
