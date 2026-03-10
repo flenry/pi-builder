@@ -198,7 +198,8 @@
       ],
       "requires": {
         "piFiles": [
-          ".pi/agents/teams.yaml"
+          ".pi/agents/teams.yaml",
+          ".pi/agents/agent-chain.yaml"
         ],
         "agentDefs": true
       }
@@ -553,6 +554,66 @@
         "testing",
         "automation"
       ]
+    },
+    "luffy": {
+      "path": ".pi/agents/straw-hats/luffy.md",
+      "description": "Captain — orchestrates tasks, routes to crew specialists",
+      "tags": ["orchestration", "leadership", "routing"]
+    },
+    "zoro": {
+      "path": ".pi/agents/straw-hats/zoro.md",
+      "description": "Backend specialist — API, database, backend infrastructure",
+      "tags": ["backend", "api", "database"]
+    },
+    "sanji": {
+      "path": ".pi/agents/straw-hats/sanji.md",
+      "description": "Frontend specialist — React, CSS, UI/UX",
+      "tags": ["frontend", "ui", "react", "css"]
+    },
+    "robin": {
+      "path": ".pi/agents/straw-hats/robin.md",
+      "description": "Research and task decomposition — breaks problems into atomic testable units",
+      "tags": ["research", "planning", "decomposition"]
+    },
+    "usopp": {
+      "path": ".pi/agents/straw-hats/usopp.md",
+      "description": "QA specialist — writes tests, finds edge cases, validates implementations",
+      "tags": ["testing", "qa", "tdd"]
+    },
+    "franky": {
+      "path": ".pi/agents/straw-hats/franky.md",
+      "description": "DevOps — Docker, CI/CD, infrastructure, builds, deployment",
+      "tags": ["devops", "docker", "ci-cd", "infrastructure"]
+    },
+    "jinbe": {
+      "path": ".pi/agents/straw-hats/jinbe.md",
+      "description": "Security — audits, access control, OWASP, policy enforcement",
+      "tags": ["security", "audit", "owasp"]
+    },
+    "law": {
+      "path": ".pi/agents/straw-hats/law.md",
+      "description": "Code reviewer — surgical precision, patterns, correctness",
+      "tags": ["review", "quality", "patterns"]
+    },
+    "vegapunk": {
+      "path": ".pi/agents/straw-hats/vegapunk.md",
+      "description": "Plan reviewer — architecture feasibility, design critique",
+      "tags": ["architecture", "review", "planning"]
+    },
+    "nami": {
+      "path": ".pi/agents/straw-hats/nami.md",
+      "description": "Finance — cost tracking, API spend analysis, budgets",
+      "tags": ["finance", "cost", "analytics"]
+    },
+    "chopper": {
+      "path": ".pi/agents/straw-hats/chopper.md",
+      "description": "System health — monitoring, error diagnosis, performance",
+      "tags": ["monitoring", "health", "performance"]
+    },
+    "benn-beckman": {
+      "path": ".pi/agents/straw-hats/benn-beckman.md",
+      "description": "Chief Quant — trading strategy, market analysis, backtesting",
+      "tags": ["quant", "trading", "analysis"]
     }
   },
   "themes": {
@@ -603,6 +664,24 @@
       ],
       "justfileRecipes": {
         "pi-team": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts"
+      }
+    },
+    "straw-hats": {
+      "description": "One Piece crew \u2014 12 specialist agents with TDD pipeline chains",
+      "extensions": [
+        "agent-team",
+        "agent-chain",
+        "tool-counter",
+        "theme-cycler",
+        "damage-control",
+        "scheduler"
+      ],
+      "justfileRecipes": {
+        "pi": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts",
+        "crew": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts",
+        "full-impl": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts",
+        "fast-impl": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts",
+        "pi-safe": "pi -e .pi/extensions/damage-control.ts -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts"
       }
     },
     "full": {

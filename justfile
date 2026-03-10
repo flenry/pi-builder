@@ -75,21 +75,21 @@ ext-scheduler:
 ext-session-replay:
     pi -e extensions/session-replay.ts -e extensions/minimal.ts
 
-# 16. Theme cycler: Ctrl+X forward, Ctrl+Q backward, /theme picker
+# 17. Theme cycler: Ctrl+X forward, Ctrl+Q backward, /theme picker
 ext-theme-cycler:
     pi -e extensions/theme-cycler.ts -e extensions/minimal.ts
 
 #g4
 
-# 17. Pi Setup: analyze and configure Pi for any project
+# 18. Pi Setup: analyze and configure Pi for any project
 ext-pi-setup:
     pi -e extensions/pi-setup.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
 
-# 18. Agent Builder: generate project-specific agent definitions
+# 19. Agent Builder: generate project-specific agent definitions
 ext-agent-builder:
     pi -e extensions/agent-builder.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
 
-# 19. Full configurator: setup + agent builder together
+# 20. Full configurator: setup + agent builder together
 ext-configurator:
     pi -e extensions/pi-setup.ts -e extensions/agent-builder.ts -e extensions/minimal.ts -e extensions/theme-cycler.ts
 
