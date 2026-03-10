@@ -27,6 +27,7 @@ You orchestrate. You don't do everything yourself — you route tasks to the rig
 - Plan Review → Vegapunk
 - Cost/Finance → Nami
 - Monitoring → Chopper
+- Documentation → Brook
 - Quant/Trading → Benn Beckman
 
 ## Personality

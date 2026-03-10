@@ -37,7 +37,7 @@ plan-review-plan:
       prompt: "Revise and improve your implementation plan based on this critique. Address every issue raised and incorporate the recommendations:\n\nOriginal request: $ORIGINAL\n\nCritique:\n$INPUT"
 
 full-review:
-  description: "End-to-end pipeline — scout, plan, build, and review"
+  description: "End-to-end pipeline — scout, plan, build, review, document"
   steps:
     - agent: scout
       prompt: "Explore the codebase and identify: $INPUT"
@@ -47,13 +47,16 @@ full-review:
       prompt: "Implement this plan:\n\n$INPUT"
     - agent: reviewer
       prompt: "Review this implementation:\n\n$INPUT"
+    - agent: brook
+      prompt: "The implementation cycle is complete. Here is the full chain output (plan → build → review):\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate the project documentation: CLAUDE.md (project context for AI re-entry), README.md (testing and running methods — only update relevant sections, preserve everything else), and INFRA.md (architecture map, services, data flow). If the project has 3+ services or significant infrastructure, also generate INFRA.html with an interactive diagram. Read existing docs first — surgically update, don't overwrite."
 
 # ── Crew Workflows ───────────────────────────────
 # TDD-first: Robin decomposes → Usopp writes failing tests → builder makes them pass
 # No orchestrator in chains — the chain IS the orchestration
+# Brook documents at the end — CLAUDE.md, README.md, INFRA.md
 
 full-implementation:
-  description: "Complete TDD pipeline — research, plan review, tests first, implement, QA, code review, security audit"
+  description: "Complete TDD pipeline — research, plan review, tests first, implement, QA, code review, security audit, document"
   steps:
     - agent: robin
       prompt: "Research and decompose this task into atomic, testable units. Break into chunks, then break each chunk into smaller tasks. Every task must have a clear test assertion:\n\n$INPUT"
@@ -68,10 +71,12 @@ full-implementation:
     - agent: law
       prompt: "Code review the implementation. Check quality, patterns, correctness, maintainability. Are the tests good? Is the code clean? Approve or reject with specific feedback:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
     - agent: jinbe
-      prompt: "Security audit. Check for vulnerabilities, input validation, secrets exposure, dependency risks. Summarize findings and create a PR summary:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Security audit. Check for vulnerabilities, input validation, secrets exposure, dependency risks. Summarize findings:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: brook
+      prompt: "The full implementation cycle is complete. Here is everything that happened — research, plan review, tests, implementation, QA, code review, and security audit:\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate the project documentation:\n1. CLAUDE.md — project context, tech stack, conventions, current state, how to work on this (AI re-entry doc)\n2. README.md — update testing and running sections only, preserve everything else\n3. INFRA.md — architecture map showing all services and how they connect, data flow, environment config\n4. If the project has 3+ services or significant infrastructure, generate INFRA.html with an interactive SVG diagram\n\nRead existing docs first. Surgically update — don't overwrite good content. Add 'Last updated' date."
 
 fast-implementation:
-  description: "Quick TDD build — research, tests first, implement, review"
+  description: "Quick TDD build — research, tests first, implement, review, document"
   steps:
     - agent: robin
       prompt: "Research and decompose this task into atomic, testable units. Break into chunks, then into smaller tasks. Every task must have a clear test assertion:\n\n$INPUT"
@@ -81,9 +86,11 @@ fast-implementation:
       prompt: "Implement the solution. Make all failing tests pass. Follow existing patterns:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
     - agent: law
       prompt: "Review the implementation and tests for quality, correctness, and completeness:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: brook
+      prompt: "The fast implementation cycle is complete (research → tests → build → review):\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate project documentation: CLAUDE.md (project context for AI re-entry), README.md (testing and running sections only), INFRA.md (architecture if infrastructure changed). Read existing docs first — surgically update only what changed."
 
 frontend-implementation:
-  description: "Frontend TDD — research, tests first, build UI, QA, review"
+  description: "Frontend TDD — research, tests first, build UI, QA, review, document"
   steps:
     - agent: robin
       prompt: "Research the frontend requirements and decompose into atomic, testable UI tasks. Break into chunks (components, interactions, states), then into smaller tasks:\n\n$INPUT"
@@ -95,6 +102,8 @@ frontend-implementation:
       prompt: "Run the full test suite. Validate all UI tasks pass. Check visual regressions, accessibility, responsive behavior:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
     - agent: law
       prompt: "Review the frontend code for quality, component patterns, and maintainability:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: brook
+      prompt: "The frontend implementation cycle is complete (research → tests → build → QA → review):\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate project documentation: CLAUDE.md (project context, component patterns, design system notes), README.md (how to run frontend, test commands), INFRA.md (update if new services/routes added). Read existing docs first — surgically update."
 
 deep-research:
   description: "Multi-pass research — Robin decomposes, Benn Beckman validates, Vegapunk critiques"
@@ -107,7 +116,7 @@ deep-research:
       prompt: "Final architecture review. Is this analysis sound? What's the recommended path forward? Concrete next steps:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
 
 security-audit:
-  description: "Full security review — Jinbe audits, Law validates, Robin finds mitigations"
+  description: "Full security review — Jinbe audits, Law validates, Robin mitigates, Brook documents"
   steps:
     - agent: jinbe
       prompt: "Full security audit of: $INPUT\n\nCheck OWASP Top 10, input validation, secrets, dependencies, access controls. Rate each finding by severity."
@@ -115,6 +124,8 @@ security-audit:
       prompt: "Review the security findings. Are they valid? Anything missed? Prioritize and classify:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
     - agent: robin
       prompt: "Research mitigations and best practices for each security issue. Provide actionable remediation steps with code examples:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: brook
+      prompt: "A security audit was completed. Here are the findings, validation, and mitigations:\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate project documentation: CLAUDE.md (add security notes and known issues), INFRA.md (update security-relevant architecture details, note any recommended infrastructure changes). Do NOT update README.md unless the audit found issues with setup/running instructions."
 
 quant-analysis:
   description: "Quantitative analysis — Benn Beckman analyzes, Robin researches context, Nami costs"

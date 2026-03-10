@@ -44,6 +44,7 @@ straw-hats:
   - vegapunk
   - chopper
   - nami
+  - brook
   - benn-beckman
 
 dev-crew:
@@ -52,6 +53,7 @@ dev-crew:
   - usopp
   - law
   - vegapunk
+  - brook
 
 research-crew:
   - robin

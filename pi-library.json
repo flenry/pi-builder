@@ -610,6 +610,11 @@
       "description": "System health — monitoring, error diagnosis, performance",
       "tags": ["monitoring", "health", "performance"]
     },
+    "brook": {
+      "path": ".pi/agents/straw-hats/brook.md",
+      "description": "Documentation officer — updates CLAUDE.md, README.md, INFRA.md after every implementation cycle",
+      "tags": ["documentation", "readme", "architecture", "infra"]
+    },
     "benn-beckman": {
       "path": ".pi/agents/straw-hats/benn-beckman.md",
       "description": "Chief Quant — trading strategy, market analysis, backtesting",
