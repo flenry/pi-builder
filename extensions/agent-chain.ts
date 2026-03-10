@@ -766,8 +766,29 @@ ${agentCatalog}
 			return;
 		}
 
-		// Default to first chain — use /chain to switch
-		activateChain(chains[0]);
+		// Check for --chain=<name> in process.argv (set via PI_CHAIN env var or direct arg)
+		let targetChain: ChainDef | undefined;
+		const chainEnv = process.env.PI_CHAIN;
+		if (chainEnv) {
+			targetChain = chains.find(c => c.name === chainEnv || c.name === chainEnv.replace(/-/g, "_"));
+		}
+		if (!targetChain) {
+			for (const arg of process.argv) {
+				const match = arg.match(/^--chain=(.+)$/);
+				if (match) {
+					const name = match[1].replace(/-/g, "_").replace(/^_+|_+$/g, "");
+					targetChain = chains.find(c => c.name === name || c.name.replace(/_/g, "-") === match[1]);
+					break;
+				}
+			}
+		}
+
+		// Auto-select if specified, otherwise default to first chain
+		if (targetChain) {
+			activateChain(targetChain);
+		} else {
+			activateChain(chains[0]);
+		}
 
 		// run_chain is registered as a tool — available alongside all default tools
 

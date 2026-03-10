@@ -133,20 +133,24 @@ crew:
 
 # Full TDD pipeline — Robin → Vegapunk → Usopp (tests) → Zoro (build) → Usopp (QA) → Law → Jinbe
 full-impl:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=full-implementation pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Fast TDD — Robin → Usopp (tests) → Zoro (build) → Law
 fast-impl:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=fast-implementation pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Frontend TDD — Robin → Usopp (tests) → Sanji (build) → Usopp (QA) → Law
 frontend-impl:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=frontend-implementation pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Deep multi-pass research — Robin → Benn Beckman → Vegapunk
 research:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=deep-research pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+
+# Security audit — Jinbe → Law → Robin
+security:
+    PI_CHAIN=security-audit pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Quant analysis — Benn Beckman → Robin → Nami
 quant:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=quant-analysis pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
