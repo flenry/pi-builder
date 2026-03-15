@@ -209,7 +209,7 @@ export default function (pi: ExtensionAPI) {
 			const task = scheduleTask(taskText, ms, true);
 			ctx.ui.notify(
 				`⏰ Scheduled recurring task #${task.id}: "${taskText}" every ${formatMs(ms)}\nNext fire: ${formatTime(task.nextFireAt)}`,
-				"success",
+				"info",
 			);
 		},
 	});
@@ -241,7 +241,7 @@ export default function (pi: ExtensionAPI) {
 			const task = scheduleTask(taskText, ms, false);
 			ctx.ui.notify(
 				`⏰ Scheduled one-shot task #${task.id}: "${taskText}" in ${formatMs(ms)}\nFires at: ${formatTime(task.nextFireAt)}`,
-				"success",
+				"info",
 			);
 		},
 	});
@@ -277,7 +277,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			if (cancelTask(id)) {
-				ctx.ui.notify(`Cancelled task #${id}`, "success");
+				ctx.ui.notify(`Cancelled task #${id}`, "info");
 			} else {
 				ctx.ui.notify(`Task #${id} not found`, "error");
 			}
@@ -290,7 +290,7 @@ export default function (pi: ExtensionAPI) {
 			widgetCtx = ctx;
 			const count = tasks.size;
 			cancelAll();
-			ctx.ui.notify(`Cleared ${count} scheduled task(s)`, "success");
+			ctx.ui.notify(`Cleared ${count} scheduled task(s)`, "info");
 		},
 	});
 
