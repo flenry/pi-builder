@@ -2,7 +2,7 @@ import { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { applyExtensionDefaults } from "./themeMap.ts";
 import { 
   Box, Text, Markdown, Container, Spacer, 
-  matchesKey, Key, truncateToWidth, getMarkdownTheme 
+  matchesKey, Key, truncateToWidth 
 } from "@mariozechner/pi-tui";
 import { DynamicBorder, getMarkdownTheme as getPiMdTheme } from "@mariozechner/pi-coding-agent";
 
