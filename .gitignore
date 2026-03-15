@@ -13,4 +13,5 @@ __pycache__/
 
 .playwright-cli/
 
-tmp/
+tmp/results.tsv
+results.tsv
