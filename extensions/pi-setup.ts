@@ -926,7 +926,7 @@ export default function (pi: ExtensionAPI) {
 		} else {
 			// Preset mode
 			presetName = presetChoice.split(" — ")[0];
-			const preset = library.presets[presetName];
+			const preset = library.presets[presetName!];
 			selectedExtensions = [...preset.extensions];
 
 			// Also check for recommended MCPs even in preset mode
