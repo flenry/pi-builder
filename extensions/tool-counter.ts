@@ -51,7 +51,7 @@ export default function (pi: ExtensionAPI) {
 
 					// --- Line 1: model + context meter (left), tokens + cost (right) ---
 					const usage = ctx.getContextUsage();
-					const pct = usage ? usage.percent : 0;
+					const pct = usage?.percent ?? 0;
 					const filled = Math.round(pct / 10) || 1;
 					const bar = "#".repeat(filled) + "-".repeat(10 - filled);
 					const model = ctx.model?.id || "no-model";
