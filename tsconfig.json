@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@mariozechner/pi-coding-agent": ["/Users/cedric/.nvm/versions/node/v24.13.0/lib/node_modules/@mariozechner/pi-coding-agent/dist/index.d.ts"],
+      "@mariozechner/pi-tui": ["/Users/cedric/.nvm/versions/node/v24.13.0/lib/node_modules/@mariozechner/pi-coding-agent/node_modules/@mariozechner/pi-tui/dist/index.d.ts"],
+      "@mariozechner/pi-ai": ["/Users/cedric/.nvm/versions/node/v24.13.0/lib/node_modules/@mariozechner/pi-coding-agent/node_modules/@mariozechner/pi-ai/dist/index.d.ts"],
+      "@sinclair/typebox": ["/Users/cedric/.nvm/versions/node/v24.13.0/lib/node_modules/@mariozechner/pi-coding-agent/node_modules/@sinclair/typebox/build/cjs/index.d.ts"],
+      "@sinclair/typebox/*": ["/Users/cedric/.nvm/versions/node/v24.13.0/lib/node_modules/@mariozechner/pi-coding-agent/node_modules/@sinclair/typebox/build/cjs/*"]
+    }
+  },
+  "include": ["extensions/**/*.ts"]
+}
