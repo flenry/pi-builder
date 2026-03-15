@@ -17,6 +17,7 @@
  * Commands:
  *   /chain             — switch active chain
  *   /chain-list        — list all available chains
+ *   /chain-stats       — show token/time telemetry for this session
  *
  * Usage: pi -e extensions/agent-chain.ts
  */
@@ -25,15 +26,24 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { spawn } from "child_process";
-import { readFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { applyExtensionDefaults } from "./themeMap.ts";
+
+// ── Constants ────────────────────────────────────
+
+/** If a resolved prompt exceeds this char count, write it to a file and pass a reference instead */
+const INPUT_SIZE_THRESHOLD = 3000;
+
+/** If an agent session file exceeds this size, archive it and start fresh next run */
+const SESSION_COMPACT_THRESHOLD_BYTES = 50 * 1024; // 50KB
 
 // ── Types ────────────────────────────────────────
 
 interface ChainStep {
 	agent: string;
 	prompt: string;
+	optional?: boolean;
 }
 
 interface ChainDef {
@@ -52,9 +62,20 @@ interface AgentDef {
 
 interface StepState {
 	agent: string;
-	status: "pending" | "running" | "done" | "error";
+	status: "pending" | "running" | "done" | "error" | "skipped";
 	elapsed: number;
 	lastWork: string;
+	merged?: boolean; // true if this step was collapsed from multiple consecutive steps
+}
+
+interface TelemetryEntry {
+	timestamp: string;
+	chain: string;
+	agent: string;
+	model: string;
+	promptChars: number;
+	outputChars: number;
+	elapsedMs: number;
 }
 
 // ── Display Name Helper ──────────────────────────
@@ -107,6 +128,13 @@ function parseChainYaml(raw: string): ChainDef[] {
 				current.steps.push(currentStep);
 			}
 			currentStep = { agent: agentMatch[1].trim(), prompt: "" };
+			continue;
+		}
+
+		// Step optional flag
+		const optionalMatch = line.match(/^\s+optional:\s+(true|false)$/);
+		if (optionalMatch && currentStep) {
+			currentStep.optional = optionalMatch[1] === "true";
 			continue;
 		}
 
@@ -196,6 +224,101 @@ function scanAgentDirs(cwd: string): Map<string, AgentDef> {
 	return agents;
 }
 
+// ── Step 1: Collapse Consecutive Same-Agent Steps ──
+/**
+ * Merge consecutive steps with the same agent into a single step.
+ * Prompts are joined with labelled section headers (## Pass 1, ## Pass 2, ...)
+ * so the agent still processes each sub-task in order.
+ */
+function collapseConsecutiveSteps(steps: ChainStep[]): ChainStep[] {
+	const collapsed: ChainStep[] = [];
+	let i = 0;
+	while (i < steps.length) {
+		const current = steps[i];
+		const group = [current];
+		let j = i + 1;
+		while (j < steps.length && steps[j].agent === current.agent) {
+			group.push(steps[j]);
+			j++;
+		}
+		if (group.length > 1) {
+			const mergedPrompt = group
+				.map((s, idx) => `## Pass ${idx + 1}\n${s.prompt}`)
+				.join("\n\n---\n\n");
+			collapsed.push({
+				agent: current.agent,
+				prompt: mergedPrompt,
+				optional: current.optional,
+			});
+		} else {
+			collapsed.push(current);
+		}
+		i = j;
+	}
+	return collapsed;
+}
+
+// ── Step 4: Externalize Large Prompts ────────────
+/**
+ * If content exceeds threshold chars, write to a file and return a short
+ * reference prompt instead. The agent can read the file if it needs full context.
+ */
+function externalizeIfLarge(content: string, filePath: string, threshold = INPUT_SIZE_THRESHOLD): string {
+	if (content.length <= threshold) return content;
+	try {
+		writeFileSync(filePath, content, "utf-8");
+		const summary = content.slice(0, 400).replace(/\n+/g, " ").trim();
+		return `Full task details are in FILE: ${filePath}\nUse the read tool to load it if you need the complete context.\n\nSummary: ${summary}...`;
+	} catch {
+		// If write fails, fall back to full content
+		return content;
+	}
+}
+
+// ── Step 7: Session Compaction ────────────────────
+/**
+ * After a chain run, check each agent session file. If it exceeds
+ * SESSION_COMPACT_THRESHOLD_BYTES, archive it to .pi/agent-sessions/logs/
+ * with a timestamp and delete the original so the next run starts with a
+ * clean context window. Full history is preserved in logs/ for auditing.
+ */
+function compactSessions(sessionDir: string, agentSessions: Map<string, string | null>) {
+	const logsDir = join(sessionDir, "logs");
+	try {
+		if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
+	} catch { return; }
+
+	const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+	for (const [agentKey, sessionFile] of agentSessions) {
+		if (!sessionFile || !existsSync(sessionFile)) continue;
+		try {
+			const size = statSync(sessionFile).size;
+			if (size > SESSION_COMPACT_THRESHOLD_BYTES) {
+				// Archive with timestamp so full history is preserved
+				const archiveName = `chain-${agentKey}-${timestamp}.json`;
+				writeFileSync(join(logsDir, archiveName), readFileSync(sessionFile));
+				// Delete original — next run starts fresh (smaller context)
+				unlinkSync(sessionFile);
+				agentSessions.set(agentKey, null);
+			}
+		} catch {}
+	}
+}
+
+// ── Step 0: Token Telemetry ───────────────────────
+
+function appendTelemetry(entry: TelemetryEntry, telemetryPath: string) {
+	try {
+		let entries: TelemetryEntry[] = [];
+		if (existsSync(telemetryPath)) {
+			try { entries = JSON.parse(readFileSync(telemetryPath, "utf-8")); } catch {}
+		}
+		entries.push(entry);
+		writeFileSync(telemetryPath, JSON.stringify(entries, null, 2), "utf-8");
+	} catch {}
+}
+
 // ── Extension ────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -204,14 +327,81 @@ export default function (pi: ExtensionAPI) {
 	let activeChain: ChainDef | null = null;
 	let widgetCtx: any;
 	let sessionDir = "";
+	let telemetryPath = "";
 	const agentSessions: Map<string, string | null> = new Map();
 
 	// Per-step state for the active chain
 	let stepStates: StepState[] = [];
 	let pendingReset = false;
 
+	// ── Step 3: Cached dispatcher system prompt ──
+	let cachedDispatcherPrompt: string | null = null;
+
+	function buildDispatcherPrompt(): string {
+		if (!activeChain) return "";
+
+		const flow = activeChain.steps.map(s => displayName(s.agent)).join(" → ");
+		const desc = activeChain.description ? `\n${activeChain.description}` : "";
+
+		// Short step list — no full system prompt text, just name + description + optional flag
+		const steps = activeChain.steps.map((s, i) => {
+			const agentDef = allAgents.get(s.agent.toLowerCase());
+			const agentDesc = agentDef?.description || "";
+			const optionalTag = s.optional ? " *(optional — skipped in fast mode)*" : "";
+			return `${i + 1}. **${displayName(s.agent)}**${optionalTag} — ${agentDesc}`;
+		}).join("\n");
+
+		// Agent catalog: description + tools only — no full system prompt
+		const seen = new Set<string>();
+		const agentCatalog = activeChain.steps
+			.filter(s => {
+				const key = s.agent.toLowerCase();
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			})
+			.map(s => {
+				const agentDef = allAgents.get(s.agent.toLowerCase());
+				if (!agentDef) return `### ${displayName(s.agent)}\nAgent not found.`;
+				return `### ${displayName(agentDef.name)}\n${agentDef.description}\n**Tools:** ${agentDef.tools}`;
+			})
+			.join("\n\n");
+
+		return `You are a pipeline dispatcher. Your ONLY job is to route tasks through the "${activeChain.name}" chain via the run_chain tool.${desc}
+
+## Active Chain: ${activeChain.name}
+Flow: ${flow}
+
+${steps}
+
+## Agents in This Chain
+
+${agentCatalog}
+
+## Rules — READ CAREFULLY
+
+1. **ALWAYS call run_chain for ANY task.** You are a dispatcher, not a doer.
+2. **NEVER implement, code, test, or build anything yourself.** That's what the chain agents are for.
+3. **NEVER skip the chain.** Even if the task seems simple, run it through the pipeline. The whole point is TDD discipline.
+4. Your other tools (read, bash, grep, etc.) are ONLY for pre-chain investigation if you need to understand the request before dispatching.
+5. After the chain completes, summarize what each agent did and report the final result.
+
+## How run_chain Works
+- Pass a clear, specific task description to run_chain
+- Each step's output feeds into the next step as \$INPUT
+- Use \`fast: true\` to skip optional steps for quick iterations
+- You can run the chain multiple times with different tasks if needed
+
+## Your Workflow
+1. User gives you a task
+2. Optionally read relevant files to understand the scope
+3. Call run_chain with a clear task description (and fast: true for quick iterations)
+4. Summarize the chain's output for the user`;
+	}
+
 	function loadChains(cwd: string) {
 		sessionDir = join(cwd, ".pi", "agent-sessions");
+		telemetryPath = join(cwd, ".pi", "agent-telemetry.json");
 		if (!existsSync(sessionDir)) {
 			mkdirSync(sessionDir, { recursive: true });
 		}
@@ -244,6 +434,8 @@ export default function (pi: ExtensionAPI) {
 			elapsed: 0,
 			lastWork: "",
 		}));
+		// Step 3: build and cache dispatcher prompt when chain changes
+		cachedDispatcherPrompt = buildDispatcherPrompt();
 		// Skip widget re-registration if reset is pending — let before_agent_start handle it
 		if (!pendingReset) {
 			updateWidget();
@@ -258,17 +450,22 @@ export default function (pi: ExtensionAPI) {
 
 		const statusColor = state.status === "pending" ? "dim"
 			: state.status === "running" ? "accent"
-			: state.status === "done" ? "success" : "error";
+			: state.status === "done" ? "success"
+			: state.status === "skipped" ? "muted"
+			: "error";
 		const statusIcon = state.status === "pending" ? "○"
 			: state.status === "running" ? "●"
-			: state.status === "done" ? "✓" : "✗";
+			: state.status === "done" ? "✓"
+			: state.status === "skipped" ? "⊘"
+			: "✗";
 
-		const name = displayName(state.agent);
+		const name = displayName(state.agent) + (state.merged ? " ×" : "");
 		const nameStr = theme.fg("accent", theme.bold(truncate(name, w)));
 		const nameVisible = Math.min(name.length, w);
 
 		const statusStr = `${statusIcon} ${state.status}`;
-		const timeStr = state.status !== "pending" ? ` ${Math.round(state.elapsed / 1000)}s` : "";
+		const timeStr = state.status !== "pending" && state.status !== "skipped"
+			? ` ${Math.round(state.elapsed / 1000)}s` : "";
 		const statusLine = theme.fg(statusColor, statusStr + timeStr);
 		const statusVisible = statusStr.length + timeStr.length;
 
@@ -363,7 +560,8 @@ export default function (pi: ExtensionAPI) {
 			"--model", model,
 			"--tools", agentDef.tools,
 			"--thinking", "off",
-			"--append-system-prompt", agentDef.systemPrompt,
+			// Step 2: only append system prompt on fresh sessions — not on resumes
+			...(hasSession ? [] : ["--append-system-prompt", agentDef.systemPrompt]),
 			"--session", agentSessionFile,
 		];
 
@@ -437,6 +635,17 @@ export default function (pi: ExtensionAPI) {
 					agentSessions.set(agentKey, agentSessionFile);
 				}
 
+				// Step 0: log telemetry entry
+				appendTelemetry({
+					timestamp: new Date().toISOString(),
+					chain: activeChain?.name ?? "unknown",
+					agent: agentDef.name,
+					model,
+					promptChars: task.length,
+					outputChars: output.length,
+					elapsedMs: elapsed,
+				}, telemetryPath);
+
 				resolve({ output, exitCode: code ?? 1, elapsed });
 			});
 
@@ -456,6 +665,7 @@ export default function (pi: ExtensionAPI) {
 	async function runChain(
 		task: string,
 		ctx: any,
+		fast = false,
 	): Promise<{ output: string; success: boolean; elapsed: number }> {
 		if (!activeChain) {
 			return { output: "No chain active", success: false, elapsed: 0 };
@@ -463,26 +673,62 @@ export default function (pi: ExtensionAPI) {
 
 		const chainStart = Date.now();
 
-		// Reset all steps to pending
-		stepStates = activeChain.steps.map(s => ({
-			agent: s.agent,
-			status: "pending" as const,
-			elapsed: 0,
-			lastWork: "",
-		}));
+		// Step 1: collapse consecutive same-agent steps before running
+		const effectiveSteps = collapseConsecutiveSteps(activeChain.steps);
+
+		// Rebuild stepStates to match effective (possibly collapsed) steps
+		stepStates = effectiveSteps.map((s, i) => {
+			const originalCount = activeChain!.steps.filter((os, oi) => {
+				// find if this was a collapsed step
+				return os.agent === s.agent;
+			}).length;
+			const merged = originalCount > 1 &&
+				activeChain!.steps.filter(os => os.agent === s.agent).length > 1 &&
+				effectiveSteps.filter(es => es.agent === s.agent).length <
+				activeChain!.steps.filter(os => os.agent === s.agent).length;
+			return {
+				agent: s.agent,
+				status: "pending" as const,
+				elapsed: 0,
+				lastWork: "",
+				merged,
+			};
+		});
 		updateWidget();
 
 		let input = task;
 		const originalPrompt = task;
 
-		for (let i = 0; i < activeChain.steps.length; i++) {
-			const step = activeChain.steps[i];
+		for (let i = 0; i < effectiveSteps.length; i++) {
+			const step = effectiveSteps[i];
+
+			// Step 8: skip optional steps in fast mode
+			if (fast && step.optional) {
+				stepStates[i].status = "skipped";
+				stepStates[i].lastWork = "skipped (fast mode)";
+				updateWidget();
+				continue;
+			}
+
 			stepStates[i].status = "running";
 			updateWidget();
 
-			const resolvedPrompt = step.prompt
+			// Step 4: externalize $ORIGINAL if it's large
+			const externalOriginal = externalizeIfLarge(
+				originalPrompt,
+				join(sessionDir, `original-${i}.txt`),
+			);
+
+			// Resolve prompt substitutions
+			let resolvedPrompt = step.prompt
 				.replace(/\$INPUT/g, input)
-				.replace(/\$ORIGINAL/g, originalPrompt);
+				.replace(/\$ORIGINAL/g, externalOriginal);
+
+			// Step 4: externalize the full resolved prompt if it's still too large
+			resolvedPrompt = externalizeIfLarge(
+				resolvedPrompt,
+				join(sessionDir, `task-${step.agent}-${i}.txt`),
+			);
 
 			const agentDef = allAgents.get(step.agent.toLowerCase());
 			if (!agentDef) {
@@ -514,6 +760,9 @@ export default function (pi: ExtensionAPI) {
 			input = result.output;
 		}
 
+		// Step 7: compact bloated session files after a successful run
+		compactSessions(sessionDir, agentSessions);
+
 		return { output: input, success: true, elapsed: Date.now() - chainStart };
 	}
 
@@ -522,29 +771,30 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "run_chain",
 		label: "Run Chain",
-		description: "Execute the active agent chain pipeline. Each step runs sequentially — output from one step feeds into the next. Agents maintain session context across runs.",
+		description: "Execute the active agent chain pipeline. Each step runs sequentially — output from one step feeds into the next. Agents maintain session context across runs. Use fast=true to skip optional steps.",
 		parameters: Type.Object({
 			task: Type.String({ description: "The task/prompt for the chain to process" }),
+			fast: Type.Optional(Type.Boolean({ description: "Skip optional steps (reviews, security audit) for quick iterations. Default: false." })),
 		}),
 
 		async execute(_toolCallId, params, _signal, onUpdate, ctx) {
-			const { task } = params as { task: string };
+			const { task, fast = false } = params as { task: string; fast?: boolean };
 
 			if (onUpdate) {
 				onUpdate({
-					content: [{ type: "text", text: `Starting chain: ${activeChain?.name}...` }],
-					details: { chain: activeChain?.name, task, status: "running" },
+					content: [{ type: "text", text: `Starting chain: ${activeChain?.name}${fast ? " (fast mode)" : ""}...` }],
+					details: { chain: activeChain?.name, task, status: "running", fast },
 				});
 			}
 
-			const result = await runChain(task, ctx);
+			const result = await runChain(task, ctx, fast);
 
 			const truncated = result.output.length > 8000
 				? result.output.slice(0, 8000) + "\n\n... [truncated]"
 				: result.output;
 
 			const status = result.success ? "done" : "error";
-			const summary = `[chain:${activeChain?.name}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
+			const summary = `[chain:${activeChain?.name}${fast ? ":fast" : ""}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
 
 			return {
 				content: [{ type: "text", text: `${summary}\n\n${truncated}` }],
@@ -552,6 +802,7 @@ export default function (pi: ExtensionAPI) {
 					chain: activeChain?.name,
 					task,
 					status,
+					fast,
 					elapsed: result.elapsed,
 					fullOutput: result.output,
 				},
@@ -560,10 +811,12 @@ export default function (pi: ExtensionAPI) {
 
 		renderCall(args, theme) {
 			const task = (args as any).task || "";
+			const fast = (args as any).fast;
 			const preview = task.length > 60 ? task.slice(0, 57) + "..." : task;
 			return new Text(
 				theme.fg("toolTitle", theme.bold("run_chain ")) +
 				theme.fg("accent", activeChain?.name || "?") +
+				(fast ? theme.fg("muted", " [fast]") : "") +
 				theme.fg("dim", " — ") +
 				theme.fg("muted", preview),
 				0, 0,
@@ -589,6 +842,7 @@ export default function (pi: ExtensionAPI) {
 			const color = details.status === "done" ? "success" : "error";
 			const elapsed = typeof details.elapsed === "number" ? Math.round(details.elapsed / 1000) : 0;
 			const header = theme.fg(color, `${icon} ${details.chain}`) +
+				(details.fast ? theme.fg("muted", " [fast]") : "") +
 				theme.fg("dim", ` ${elapsed}s`);
 
 			if (options.expanded && details.fullOutput) {
@@ -645,12 +899,64 @@ export default function (pi: ExtensionAPI) {
 			const list = chains.map(c => {
 				const desc = c.description ? `  ${c.description}` : "";
 				const steps = c.steps.map((s, i) =>
-					`  ${i + 1}. ${displayName(s.agent)}`
+					`  ${i + 1}. ${displayName(s.agent)}${s.optional ? " (optional)" : ""}`
 				).join("\n");
 				return `${c.name}:${desc ? "\n" + desc : ""}\n${steps}`;
 			}).join("\n\n");
 
 			ctx.ui.notify(list, "info");
+		},
+	});
+
+	// Step 0: /chain-stats command — show telemetry summary
+	pi.registerCommand("chain-stats", {
+		description: "Show token/time telemetry for chain runs",
+		handler: async (_args, ctx) => {
+			if (!existsSync(telemetryPath)) {
+				ctx.ui.notify("No telemetry data yet. Run a chain first.", "info");
+				return;
+			}
+			try {
+				const entries: TelemetryEntry[] = JSON.parse(readFileSync(telemetryPath, "utf-8"));
+				if (entries.length === 0) {
+					ctx.ui.notify("No telemetry entries found.", "info");
+					return;
+				}
+
+				// Aggregate by agent
+				const byAgent = new Map<string, { calls: number; promptChars: number; outputChars: number; elapsedMs: number }>();
+				let totalPromptChars = 0;
+				let totalOutputChars = 0;
+				let totalElapsed = 0;
+
+				for (const e of entries) {
+					const key = `${e.agent} (${e.model.split("/").pop()})`;
+					const agg = byAgent.get(key) ?? { calls: 0, promptChars: 0, outputChars: 0, elapsedMs: 0 };
+					agg.calls++;
+					agg.promptChars += e.promptChars;
+					agg.outputChars += e.outputChars;
+					agg.elapsedMs += e.elapsedMs;
+					byAgent.set(key, agg);
+					totalPromptChars += e.promptChars;
+					totalOutputChars += e.outputChars;
+					totalElapsed += e.elapsedMs;
+				}
+
+				const rows = Array.from(byAgent.entries())
+					.sort((a, b) => b[1].promptChars - a[1].promptChars)
+					.map(([name, s]) =>
+						`${name}\n  calls: ${s.calls}  prompt: ${(s.promptChars / 1000).toFixed(1)}k chars  output: ${(s.outputChars / 1000).toFixed(1)}k chars  time: ${Math.round(s.elapsedMs / 1000)}s`
+					).join("\n");
+
+				const summary =
+					`Chain Telemetry (${entries.length} runs)\n` +
+					`Total prompt: ${(totalPromptChars / 1000).toFixed(1)}k chars  output: ${(totalOutputChars / 1000).toFixed(1)}k chars  time: ${Math.round(totalElapsed / 1000)}s\n\n` +
+					rows;
+
+				ctx.ui.notify(summary, "info");
+			} catch {
+				ctx.ui.notify("Failed to read telemetry file.", "error");
+			}
 		},
 	});
 
@@ -672,64 +978,8 @@ export default function (pi: ExtensionAPI) {
 
 		if (!activeChain) return {};
 
-		const flow = activeChain.steps.map(s => displayName(s.agent)).join(" → ");
-		const desc = activeChain.description ? `\n${activeChain.description}` : "";
-
-		// Build pipeline steps summary
-		const steps = activeChain.steps.map((s, i) => {
-			const agentDef = allAgents.get(s.agent.toLowerCase());
-			const agentDesc = agentDef?.description || "";
-			return `${i + 1}. **${displayName(s.agent)}** — ${agentDesc}`;
-		}).join("\n");
-
-		// Build full agent catalog (like agent-team.ts)
-		const seen = new Set<string>();
-		const agentCatalog = activeChain.steps
-			.filter(s => {
-				const key = s.agent.toLowerCase();
-				if (seen.has(key)) return false;
-				seen.add(key);
-				return true;
-			})
-			.map(s => {
-				const agentDef = allAgents.get(s.agent.toLowerCase());
-				if (!agentDef) return `### ${displayName(s.agent)}\nAgent not found.`;
-				return `### ${displayName(agentDef.name)}\n${agentDef.description}\n**Tools:** ${agentDef.tools}\n**Role:** ${agentDef.systemPrompt}`;
-			})
-			.join("\n\n");
-
-		return {
-			systemPrompt: `You are a pipeline dispatcher. Your ONLY job is to route tasks through the "${activeChain.name}" chain via the run_chain tool.${desc}
-
-## Active Chain: ${activeChain.name}
-Flow: ${flow}
-
-${steps}
-
-## Agent Details
-
-${agentCatalog}
-
-## Rules — READ CAREFULLY
-
-1. **ALWAYS call run_chain for ANY task.** You are a dispatcher, not a doer.
-2. **NEVER implement, code, test, or build anything yourself.** That's what the chain agents are for.
-3. **NEVER skip the chain.** Even if the task seems simple, run it through the pipeline. The whole point is TDD discipline.
-4. Your other tools (read, bash, grep, etc.) are ONLY for pre-chain investigation if you need to understand the request better before dispatching.
-5. After the chain completes, summarize what each agent did and report the final result.
-
-## How run_chain Works
-- Pass a clear, specific task description to run_chain
-- Each step's output feeds into the next step as $INPUT
-- The chain runs ALL steps sequentially — no steps are skipped
-- You can run the chain multiple times with different tasks if needed
-
-## Your Workflow
-1. User gives you a task
-2. Read relevant files if needed to understand the scope (optional)
-3. Call run_chain with a clear task description
-4. Summarize the chain's output for the user`,
-		};
+		// Step 3: return cached dispatcher prompt — built once in activateChain, not rebuilt every turn
+		return { systemPrompt: cachedDispatcherPrompt ?? buildDispatcherPrompt() };
 	});
 
 	// ── Session Start ───────────────────────────
@@ -746,6 +996,7 @@ ${agentCatalog}
 		// Reset execution state — widget re-registration deferred to before_agent_start
 		stepStates = [];
 		activeChain = null;
+		cachedDispatcherPrompt = null;
 		pendingReset = true;
 
 		// Wipe chain session files — reset agent context on /new and launch
@@ -797,7 +1048,8 @@ ${agentCatalog}
 		_ctx.ui.notify(
 			`Chain: ${activeChain!.name}\n${activeChain!.description}\n${flow}\n\n` +
 			`/chain             Switch chain\n` +
-			`/chain-list        List all chains`,
+			`/chain-list        List all chains\n` +
+			`/chain-stats       View token/time telemetry`,
 			"info",
 		);
 
@@ -808,7 +1060,7 @@ ${agentCatalog}
 			render(width: number): string[] {
 				const model = _ctx.model?.id || "no-model";
 				const usage = _ctx.getContextUsage();
-				const pct = usage ? usage.percent : 0;
+				const pct = usage?.percent ?? 0;
 				const filled = Math.round(pct / 10);
 				const bar = "#".repeat(filled) + "-".repeat(10 - filled);
 
