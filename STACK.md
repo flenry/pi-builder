@@ -45,21 +45,31 @@ YOU (Chief / Pirate King Ced)
 | **Skill file** | `~/.pi/agent/skills/ohara/SKILL.md` |
 | **Cookbooks** | `~/.pi/agent/skills/ohara/cookbook/` |
 
-### pi-builder — The Crew Toolkit
+### pi-builder — Extensions & Launcher
 | Item | Path |
 |---|---|
 | **Repo** | `~/code/pi-builder/` |
+| **GitHub** | `https://github.com/flenry/pi-builder` |
 | **Extensions** | `~/code/pi-builder/extensions/` |
 | **Extension library manifest** | `~/code/pi-builder/pi-library.json` |
-| **Straw Hat agents** | `~/code/pi-builder/.pi/agents/straw-hats/` |
-| **Workflow pipelines** | `~/code/pi-builder/.pi/agents/agent-chain.yaml` |
-| **Team definitions** | `~/code/pi-builder/.pi/agents/teams.yaml` |
 | **Damage control rules** | `~/code/pi-builder/.pi/damage-control-rules.yaml` |
 | **Themes** | `~/code/pi-builder/.pi/themes/` |
 | **Launch recipes** | `~/code/pi-builder/justfile` |
 | **Prime command** | `~/code/pi-builder/.claude/commands/prime.md` |
 | **Agent session files** | `~/code/pi-builder/.pi/agent-sessions/` *(gitignored)* |
 | **Telemetry** | `~/code/pi-builder/.pi/agent-telemetry.json` *(gitignored)* |
+
+> **Note:** Agent definitions and workflows have moved to the `crew` repo. pi-builder only keeps local copies in `.pi/agents/straw-hats/` for the chain/team extensions to load at runtime.
+
+### crew — Agents & Workflows
+| Item | Path |
+|---|---|
+| **Repo** | `~/code/crew/` |
+| **GitHub** | `https://github.com/flenry/crew` *(private)* |
+| **Agent definitions** | `~/code/crew/agents/` |
+| **Workflow pipelines** | `~/code/crew/workflows/agent-chain.yaml` |
+| **Team definitions** | `~/code/crew/workflows/teams.yaml` |
+| **Crew skill** | `~/code/crew/SKILL.md` |
 
 ### Global pi Config
 | Item | Path |
@@ -70,23 +80,28 @@ YOU (Chief / Pirate King Ced)
 | **Global prompts dir** | `~/.pi/agent/prompts/` |
 
 ### Installed Global Skills
-| Skill | Path | Source |
+| Skill | Path | GitHub |
 |---|---|---|
-| **ohara** | `~/.pi/agent/skills/ohara/` | `~/code/ohara/` → GitHub |
-| **crew** | `~/.pi/agent/skills/crew/` | `~/code/crew/` |
-| **autoexperiment** | `~/.pi/agent/skills/autoexperiment/` | `~/code/autoexperiment/` |
+| **ohara** | `~/.pi/agent/skills/ohara/` | `github.com/flenry/ohara` |
+| **crew** | `~/.pi/agent/skills/crew/` | `github.com/flenry/crew` |
+| **autoexperiment** | `~/.pi/agent/skills/autoexperiment/` | local only |
 
-### Standalone Skill Repos
-| Skill | Path | Registered in Ohara |
-|---|---|---|
-| **autoexperiment** | `~/code/autoexperiment/` | ✅ |
-| **crew** | `~/code/crew/` | ✅ |
+### Skill / Agent Source Repos
+| Repo | Path | Purpose | Registered in Ohara |
+|---|---|---|---|
+| **ohara** | `~/code/ohara/` | catalog manager | self |
+| **crew** | `~/code/crew/` | agents + workflows | ✅ GitHub URLs |
+| **autoexperiment** | `~/code/autoexperiment/` | optimization loop | ✅ local path |
+| **pi-builder** | `~/code/pi-builder/` | extensions + launcher | not needed |
 
 ---
 
 ## The Straw Hat Crew
 
-Agents live in `~/code/pi-builder/.pi/agents/straw-hats/`. Each is a `.md` file with YAML frontmatter defining name, model, and tools, followed by the system prompt.
+**Source of truth:** `~/code/crew/agents/` (GitHub: `flenry/crew`)
+**Runtime copies** (loaded by pi-builder extensions): `~/code/pi-builder/.pi/agents/straw-hats/`
+
+Each agent is a `.md` file with YAML frontmatter defining name, model, and tools, followed by the system prompt.
 
 | Agent | File | Model | Role |
 |---|---|---|---|
@@ -105,7 +120,10 @@ Agents live in `~/code/pi-builder/.pi/agents/straw-hats/`. Each is a `.md` file 
 
 ### Workflow Pipelines
 
-Defined in `~/code/pi-builder/.pi/agents/agent-chain.yaml`. Select at runtime with `/chain`.
+**Source of truth:** `~/code/crew/workflows/agent-chain.yaml`
+**Runtime copy** (used by agent-chain extension): `~/code/pi-builder/.pi/agents/agent-chain.yaml`
+
+Select at runtime with `/chain`.
 
 | Workflow | Pipeline | Best For |
 |---|---|---|
@@ -123,14 +141,14 @@ Defined in `~/code/pi-builder/.pi/agents/agent-chain.yaml`. Select at runtime wi
 
 ## The Ohara Catalog
 
-Current contents of `ohara.yaml`:
+Current contents of `ohara.yaml` (at `~/.pi/agent/skills/ohara/ohara.yaml`):
 
 **Skills**
-- `autoexperiment` — autonomous optimization loop (`~/code/autoexperiment/SKILL.md`)
-- `crew` — Straw Hat orchestration reference (`~/code/crew/SKILL.md`)
+- `autoexperiment` — local path `~/code/autoexperiment/SKILL.md`
+- `crew` — `github.com/flenry/crew/blob/main/SKILL.md`
 
-**Agents** (all from `~/code/pi-builder/.pi/agents/straw-hats/`)
-- luffy, robin, zoro, sanji, usopp, law, jinbe, franky, vegapunk, chopper, nami, benn-beckman
+**Agents** (all from `github.com/flenry/crew/blob/main/agents/`)
+- benn-beckman, chopper, franky, jinbe, law, luffy, nami, robin, sanji, usopp, vegapunk, zoro
 
 **Prompts** — empty (add as needed)
 
@@ -196,13 +214,21 @@ git clone git@github.com:flenry/ohara.git ~/.pi/agent/skills/ohara
 ```
 
 ### Update an agent's model or system prompt
-Edit the file directly:
+The crew repo is the source of truth. Edit there, push, then sync the runtime copy:
 ```bash
-nano ~/code/pi-builder/.pi/agents/straw-hats/<name>.md
+# 1. Edit source
+nano ~/code/crew/agents/<name>.md
+
+# 2. Push to GitHub
+cd ~/code/crew && git add agents/<name>.md && git commit -m "crew: <name> — <change>" && git push
+
+# 3. Sync runtime copy into pi-builder (so chain/team extensions see it)
+cp ~/code/crew/agents/<name>.md ~/code/pi-builder/.pi/agents/straw-hats/<name>.md
 ```
-Then push back to source:
+
+Or via Ohara on any device:
 ```
-/skill:ohara push <name>
+/skill:ohara use <name> globally
 ```
 
 ---
@@ -253,8 +279,17 @@ pi -e extensions/<name>.ts  # test loading manually
 ```
 
 ### New crew member not showing in `/chain`
-- Restart pi or run `/new` after editing `agent-chain.yaml` — the chain extension reloads on session start
-- Verify the new agent file exists in `.pi/agents/straw-hats/`
+- Restart pi or run `/new` — the chain extension reloads on session start
+- Verify the agent file exists in `~/code/pi-builder/.pi/agents/straw-hats/` (the runtime copy)
+- Source of truth is `~/code/crew/agents/` — sync with: `cp ~/code/crew/agents/<name>.md ~/code/pi-builder/.pi/agents/straw-hats/`
+
+### crew repo and pi-builder out of sync
+```bash
+# Sync all agents from crew → pi-builder
+cp ~/code/crew/agents/*.md ~/code/pi-builder/.pi/agents/straw-hats/
+cp ~/code/crew/workflows/agent-chain.yaml ~/code/pi-builder/.pi/agents/
+cp ~/code/crew/workflows/teams.yaml ~/code/pi-builder/.pi/agents/
+```
 
 ### Ohara push fails (conflicts)
 ```bash
