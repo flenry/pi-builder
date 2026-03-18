@@ -23,6 +23,7 @@ import { Text, type AutocompleteItem, truncateToWidth, visibleWidth } from "@mar
 import { spawn } from "child_process";
 import { readdirSync, readFileSync, existsSync, mkdirSync, unlinkSync, statSync } from "fs";
 import { join, resolve } from "path";
+import { homedir } from "os";
 import { applyExtensionDefaults } from "./themeMap.ts";
 
 // ── Types ────────────────────────────────────────
@@ -111,6 +112,7 @@ function scanAgentDirs(cwd: string): AgentDef[] {
 		join(cwd, "agents"),
 		join(cwd, ".claude", "agents"),
 		join(cwd, ".pi", "agents"),
+		join(homedir(), ".pi", "agent", "agents"),
 	];
 
 	const agents: AgentDef[] = [];
@@ -165,16 +167,21 @@ export default function (pi: ExtensionAPI) {
 		// Load all agent definitions
 		allAgentDefs = scanAgentDirs(cwd);
 
-		// Load teams from .pi/agents/teams.yaml
-		const teamsPath = join(cwd, ".pi", "agents", "teams.yaml");
-		if (existsSync(teamsPath)) {
+		// Load teams — project-local first, then merge global
+		const teamsPaths = [
+			join(cwd, ".pi", "agents", "teams.yaml"),
+			join(homedir(), ".pi", "agent", "agents", "teams.yaml"),
+		];
+		teams = {};
+		for (const teamsPath of teamsPaths) {
+			if (!existsSync(teamsPath)) continue;
 			try {
-				teams = parseTeamsYaml(readFileSync(teamsPath, "utf-8"));
-			} catch {
-				teams = {};
-			}
-		} else {
-			teams = {};
+				const parsed = parseTeamsYaml(readFileSync(teamsPath, "utf-8"));
+				// Project-local teams take priority (loaded first)
+				for (const [name, members] of Object.entries(parsed)) {
+					if (!(name in teams)) teams[name] = members;
+				}
+			} catch {}
 		}
 
 		// If no teams defined, create a default "all" team

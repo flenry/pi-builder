@@ -28,6 +28,7 @@ import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { spawn } from "child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync } from "fs";
 import { join, resolve } from "path";
+import { homedir } from "os";
 import { applyExtensionDefaults } from "./themeMap.ts";
 
 // ── Constants ────────────────────────────────────
@@ -194,6 +195,7 @@ function scanAgentDirs(cwd: string): Map<string, AgentDef> {
 		join(cwd, "agents"),
 		join(cwd, ".claude", "agents"),
 		join(cwd, ".pi", "agents"),
+		join(homedir(), ".pi", "agent", "agents"),
 	];
 
 	const agents = new Map<string, AgentDef>();
@@ -414,15 +416,23 @@ ${agentCatalog}
 			agentSessions.set(key, existsSync(sessionFile) ? sessionFile : null);
 		}
 
-		const chainPath = join(cwd, ".pi", "agents", "agent-chain.yaml");
-		if (existsSync(chainPath)) {
-			try {
-				chains = parseChainYaml(readFileSync(chainPath, "utf-8"));
-			} catch {
-				chains = [];
+		// Check project-local first, fall back to global
+		const chainPaths = [
+			join(cwd, ".pi", "agents", "agent-chain.yaml"),
+			join(homedir(), ".pi", "agent", "agents", "agent-chain.yaml"),
+		];
+		chains = [];
+		for (const chainPath of chainPaths) {
+			if (existsSync(chainPath)) {
+				try {
+					const parsed = parseChainYaml(readFileSync(chainPath, "utf-8"));
+					// Merge: project-local chains override global ones with same name
+					const existing = new Set(chains.map(c => c.name));
+					for (const c of parsed) {
+						if (!existing.has(c.name)) chains.push(c);
+					}
+				} catch {}
 			}
-		} else {
-			chains = [];
 		}
 	}
 
