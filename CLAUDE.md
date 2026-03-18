@@ -231,6 +231,50 @@ Status: `keep` | `discard` | `crash`
 
 ---
 
+## SOP: Slash command autocomplete
+
+**Every user-facing feature MUST register a slash command.** Pi's `/` autocomplete is built
+dynamically from `pi.registerCommand()` calls. If you add a new feature, capability, or
+toggle to an extension, it must be discoverable via autocomplete.
+
+### Checklist (run on every PR / commit that touches extensions)
+
+1. **New extension?** → Must have at least one `pi.registerCommand()` with a clear `description`
+2. **New feature in existing extension?** → Add a command if the user needs to invoke or configure it
+3. **Verify coverage** — run this to find extensions with no commands:
+   ```bash
+   for ext in extensions/*.ts; do
+     name=$(basename "$ext" .ts)
+     cmds=$(grep -c 'registerCommand' "$ext" 2>/dev/null)
+     if [ "$cmds" = "0" ]; then echo "⚠️  $name: no slash commands"; fi
+   done
+   ```
+4. **Passive extensions are OK** — `minimal.ts`, `pure-focus.ts`, `themeMap.ts`, `project-context.ts`
+   don't need commands (they're wiring/theming). But if a passive extension grows a user-facing
+   toggle or config, add a command for it.
+
+### Current command registry
+
+| Extension | Commands |
+|---|---|
+| `agent-builder` | `/agents-build`, `/agents-build-status` |
+| `agent-chain` | `/chain`, `/chain-list`, `/chain-stats` |
+| `agent-team` | `/agents-team`, `/agents-list`, `/agents-grid` |
+| `cross-agent` | _(dynamic — registers from .claude/ dirs at runtime)_ |
+| `pi-pi` | `/experts`, `/experts-grid`, `/analyze` |
+| `pi-setup` | `/setup`, `/setup-status` |
+| `scheduler` | `/schedule`, `/schedule-once`, `/schedule-list`, `/schedule-cancel`, `/schedule-clear` |
+| `session-replay` | `/replay` |
+| `subagent-widget` | `/sub`, `/subcont`, `/subrm`, `/subclear` |
+| `system-select` | `/system` |
+| `theme-cycler` | `/theme` |
+| `tilldone` | `/tilldone` |
+| Passive (no cmds) | `minimal`, `pure-focus`, `themeMap`, `project-context`, `tool-counter`, `tool-counter-widget`, `purpose-gate`, `damage-control` |
+
+**Update this table whenever commands change.**
+
+---
+
 ## Simplicity principle
 
 Fixes that use `// @ts-ignore` or cast to `any` → discard (mask, don't fix).  
