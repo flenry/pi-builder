@@ -125,32 +125,44 @@ all:
     just open pi-pi theme-cycler
     just open pi-setup minimal theme-cycler
     just open agent-builder minimal theme-cycler
-# ── Crew Workflows ───────────────────────────────
+# 20. Project context header: injects CLAUDE.md + stack + skills into every agent
+ext-project-context:
+    pi -e extensions/project-context.ts -e extensions/minimal.ts
+
+# ── Straw Hat Crew ────────────────────────────────
+# All workflow commands launch agent-chain.ts — use /chain to pick a workflow at runtime
+# Available workflows: plan, plan-build, plan-build-review, plan-review-plan,
+#   recon-flow, full-review, full-implementation, fast-implementation,
+#   frontend-implementation, deep-research, security-audit, quant-analysis
 
 # Full crew dispatcher — Luffy routes to 12 specialists dynamically
 crew:
-    pi -e extensions/agent-team.ts -e extensions/theme-cycler.ts
+    pi -e extensions/project-context.ts -e extensions/agent-team.ts -e extensions/theme-cycler.ts
+
+# Agent chain — sequential workflow pipelines (select with /chain)
+chain:
+    pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Full TDD pipeline — Robin → Vegapunk → Usopp (tests) → Zoro (build) → Usopp (QA) → Law → Jinbe
 full-impl:
-    PI_CHAIN=full-implementation pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=full-implementation pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Fast TDD — Robin → Usopp (tests) → Zoro (build) → Law
 fast-impl:
-    PI_CHAIN=fast-implementation pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=fast-implementation pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Frontend TDD — Robin → Usopp (tests) → Sanji (build) → Usopp (QA) → Law
 frontend-impl:
-    PI_CHAIN=frontend-implementation pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=frontend-implementation pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Deep multi-pass research — Robin → Benn Beckman → Vegapunk
 research:
-    PI_CHAIN=deep-research pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=deep-research pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Security audit — Jinbe → Law → Robin
 security:
-    PI_CHAIN=security-audit pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=security-audit pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
 
 # Quant analysis — Benn Beckman → Robin → Nami
 quant:
-    PI_CHAIN=quant-analysis pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+    PI_CHAIN=quant-analysis pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts

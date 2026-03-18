@@ -313,6 +313,21 @@
       "depends": [
         "extensions/themeMap.ts"
       ]
+    },
+    "project-context": {
+      "path": "extensions/project-context.ts",
+      "description": "Injects project context (CLAUDE.md, stack detection, available skills) into every agent system prompt at startup \u2014 agents start smart not cold",
+      "tags": [
+        "agents",
+        "context",
+        "workflow",
+        "productivity"
+      ],
+      "triggers": [
+        "*"
+      ],
+      "stackable": true,
+      "depends": []
     }
   },
   "skills": {
@@ -687,6 +702,20 @@
         "full-impl": "pi -e .pi/ext/agent-chain.ts -e .pi/ext/theme-cycler.ts",
         "fast-impl": "pi -e .pi/ext/agent-chain.ts -e .pi/ext/theme-cycler.ts",
         "pi-safe": "pi -e .pi/ext/damage-control.ts -e .pi/ext/tool-counter.ts -e .pi/ext/theme-cycler.ts"
+      }
+    },
+    "research": {
+      "description": "Research & quant workflows — deep research, quant analysis, recon, security audit via agent chains and team dispatch",
+      "extensions": [
+        "agent-chain",
+        "agent-team",
+        "tool-counter",
+        "theme-cycler"
+      ],
+      "justfileRecipes": {
+        "pi": "pi -e .pi/extensions/tool-counter.ts -e .pi/extensions/theme-cycler.ts",
+        "crew": "pi -e .pi/extensions/agent-team.ts -e .pi/extensions/theme-cycler.ts",
+        "chain": "pi -e .pi/extensions/agent-chain.ts -e .pi/extensions/theme-cycler.ts"
       }
     },
     "full": {
