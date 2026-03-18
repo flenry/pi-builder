@@ -125,28 +125,20 @@ all:
     just open pi-pi theme-cycler
     just open pi-setup minimal theme-cycler
     just open agent-builder minimal theme-cycler
-# ── Crew Workflows ───────────────────────────────
+# 20. Project context header: injects CLAUDE.md + stack + skills into every agent
+ext-project-context:
+    pi -e extensions/project-context.ts -e extensions/minimal.ts
+
+# ── Straw Hat Crew ────────────────────────────────
+# All workflow commands launch agent-chain.ts — use /chain to pick a workflow at runtime
+# Available workflows: plan, plan-build, plan-build-review, plan-review-plan,
+#   recon-flow, full-review, full-implementation, fast-implementation,
+#   frontend-implementation, deep-research, security-audit, quant-analysis
 
 # Full crew dispatcher — Luffy routes to 12 specialists dynamically
 crew:
-    pi -e extensions/agent-team.ts -e extensions/theme-cycler.ts
+    pi -e extensions/project-context.ts -e extensions/agent-team.ts -e extensions/theme-cycler.ts
 
-# Full TDD pipeline — Robin → Vegapunk → Usopp (tests) → Zoro (build) → Usopp (QA) → Law → Jinbe
-full-impl:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
-
-# Fast TDD — Robin → Usopp (tests) → Zoro (build) → Law
-fast-impl:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
-
-# Frontend TDD — Robin → Usopp (tests) → Sanji (build) → Usopp (QA) → Law
-frontend-impl:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
-
-# Deep multi-pass research — Robin → Benn Beckman → Vegapunk
-research:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
-
-# Quant analysis — Benn Beckman → Robin → Nami
-quant:
-    pi -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
+# Agent chain — sequential workflow pipelines (select with /chain)
+chain:
+    pi -e extensions/project-context.ts -e extensions/agent-chain.ts -e extensions/theme-cycler.ts
