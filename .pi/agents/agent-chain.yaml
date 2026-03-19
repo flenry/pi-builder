@@ -1,138 +1,98 @@
-plan-build-review:
-  description: "Plan, implement, and review — the standard development cycle"
-  steps:
-    - agent: planner
-      prompt: "Plan the implementation for: $INPUT"
-    - agent: builder
-      prompt: "Implement the following plan:\n\n$INPUT"
-    - agent: reviewer
-      prompt: "Review this implementation for bugs, style, and correctness:\n\n$INPUT"
+# ── Workflows ────────────────────────────────────────────────────────────────
+# Use /chain to pick a workflow at runtime.
+# optional: true steps are skipped when fast=true is passed to run_chain.
 
-plan-build:
-  description: "Plan then build — fast two-step implementation without review"
-  steps:
-    - agent: planner
-      prompt: "Plan the implementation for: $INPUT"
-    - agent: builder
-      prompt: "Based on this plan, implement:\n\n$INPUT"
-
-scout-flow:
-  description: "Triple-scout deep recon — explore, validate, verify"
-  steps:
-    - agent: scout
-      prompt: "Explore the codebase and investigate: $INPUT\n\nReport your findings with structure, key files, and patterns."
-    - agent: scout
-      prompt: "Validate and cross-check the following analysis. Look for anything missed, incorrect, or incomplete:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: scout
-      prompt: "Final review pass. Verify the analysis below is accurate and complete. Add any missing details or corrections:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-
-plan-review-plan:
-  description: "Iterative planning — plan, critique, then refine with feedback"
-  steps:
-    - agent: planner
-      prompt: "Create a detailed implementation plan for: $INPUT"
-    - agent: plan-reviewer
-      prompt: "Critically review this implementation plan. Challenge assumptions, find gaps, and suggest improvements:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: planner
-      prompt: "Revise and improve your implementation plan based on this critique. Address every issue raised and incorporate the recommendations:\n\nOriginal request: $ORIGINAL\n\nCritique:\n$INPUT"
-
-full-review:
-  description: "End-to-end pipeline — scout, plan, build, review, document"
-  steps:
-    - agent: scout
-      prompt: "Explore the codebase and identify: $INPUT"
-    - agent: planner
-      prompt: "Based on this analysis, create a plan:\n\n$INPUT"
-    - agent: builder
-      prompt: "Implement this plan:\n\n$INPUT"
-    - agent: reviewer
-      prompt: "Review this implementation:\n\n$INPUT"
-    - agent: brook
-      prompt: "The implementation cycle is complete. Here is the full chain output (plan → build → review):\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate the project documentation: CLAUDE.md (project context for AI re-entry), README.md (testing and running methods — only update relevant sections, preserve everything else), and INFRA.md (architecture map, services, data flow). If the project has 3+ services or significant infrastructure, also generate INFRA.html with an interactive diagram. Read existing docs first — surgically update, don't overwrite."
-
-# ── Crew Workflows ───────────────────────────────
-# TDD-first: Robin decomposes → Usopp writes failing tests → builder makes them pass
-# No orchestrator in chains — the chain IS the orchestration
-# Brook documents at the end — CLAUDE.md, README.md, INFRA.md
-
-full-implementation:
-  description: "Complete TDD pipeline — research, plan review, tests first, implement, QA, code review, security audit, document"
+# recon: single Robin call — explore, verify, generate SYSTEM-MAP.html
+recon:
+  description: "Deep codebase recon — explore, verify, generate SYSTEM-MAP.html"
   steps:
     - agent: robin
-      prompt: "Research and decompose this task into atomic, testable units. Break into chunks, then break each chunk into smaller tasks. Every task must have a clear test assertion:\n\n$INPUT"
-    - agent: vegapunk
-      prompt: "Review this task decomposition and implementation plan. Challenge assumptions, find gaps, check feasibility. Are the atomic tasks truly atomic? Are there missing edge cases? Approve or reject with specific feedback:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: usopp
-      prompt: "Write failing tests for EVERY atomic task in the approved plan. Tests should be comprehensive — cover happy paths, edge cases, and error scenarios. All tests MUST FAIL at this point (no implementation yet):\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: zoro
-      prompt: "Implement the solution. Make ALL the failing tests pass, one atomic task at a time. Follow existing patterns. Do not skip any test:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: usopp
-      prompt: "Run the full test suite. Validate every atomic task passes. Check for regressions. Report: total tests, passed, failed, coverage if available. If any fail, detail exactly what broke:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: |
+        Deep recon for: $INPUT
+
+        Pass 1 — Explore: key files, entry points, data flow, dependencies, architecture.
+        Pass 2 — Validate: cross-check findings, fill gaps, map components and connections.
+        Pass 3 — Map: generate SYSTEM-MAP.html using Mermaid.js (CDN). Show components, data flow, external deps, entry points. Include legend.
+
+        Finish: update PROGRESS.md with findings.
+
+# plan: decompose and optionally review
+plan:
+  description: "Decompose task into a reviewed implementation plan"
+  steps:
+    - agent: robin
+      prompt: "Decompose this into atomic, testable tasks. Write to PLAN.md with task breakdown, outcomes, and test guidance:\n\n$INPUT"
     - agent: law
-      prompt: "Code review the implementation. Check quality, patterns, correctness, maintainability. Are the tests good? Is the code clean? Approve or reject with specific feedback:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: jinbe
-      prompt: "Security audit. Check for vulnerabilities, input validation, secrets exposure, dependency risks. Summarize findings:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: brook
-      prompt: "The full implementation cycle is complete. Here is everything that happened — research, plan review, tests, implementation, QA, code review, and security audit:\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate the project documentation:\n1. CLAUDE.md — project context, tech stack, conventions, current state, how to work on this (AI re-entry doc)\n2. README.md — update testing and running sections only, preserve everything else\n3. INFRA.md — architecture map showing all services and how they connect, data flow, environment config\n4. If the project has 3+ services or significant infrastructure, generate INFRA.html with an interactive SVG diagram\n\nRead existing docs first. Surgically update — don't overwrite good content. Add 'Last updated' date."
+      optional: true
+      prompt: "Review PLAN.md. Are tasks atomic and testable? Outcomes measurable? Missing edge cases? Optimal order? Update PLAN.md with review notes. Append to PROGRESS.md.\n\nOriginal: $ORIGINAL"
 
-fast-implementation:
-  description: "Quick TDD build — research, tests first, implement, review, document"
+# build: plan → tests → implement (lean TDD)
+build:
+  description: "TDD build — plan, failing tests, implement. Review optional."
   steps:
     - agent: robin
-      prompt: "Research and decompose this task into atomic, testable units. Break into chunks, then into smaller tasks. Every task must have a clear test assertion:\n\n$INPUT"
+      prompt: "Decompose into atomic testable tasks. Write to PLAN.md:\n\n$INPUT"
     - agent: usopp
-      prompt: "Write failing tests for every atomic task in the plan. Cover happy paths and edge cases. All tests MUST FAIL:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
     - agent: zoro
-      prompt: "Implement the solution. Make all failing tests pass. Follow existing patterns:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
     - agent: law
-      prompt: "Review the implementation and tests for quality, correctness, and completeness:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: brook
-      prompt: "The fast implementation cycle is complete (research → tests → build → review):\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate project documentation: CLAUDE.md (project context for AI re-entry), README.md (testing and running sections only), INFRA.md (architecture if infrastructure changed). Read existing docs first — surgically update only what changed."
+      optional: true
+      prompt: "Code review: quality, patterns, correctness, test coverage. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
 
-frontend-implementation:
-  description: "Frontend TDD — research, tests first, build UI, QA, review, document"
+# frontend: plan → tests → UI build → review
+frontend:
+  description: "Frontend TDD — plan, tests, build UI, review"
   steps:
     - agent: robin
-      prompt: "Research the frontend requirements and decompose into atomic, testable UI tasks. Break into chunks (components, interactions, states), then into smaller tasks:\n\n$INPUT"
+      prompt: "Decompose frontend requirements into atomic, testable UI tasks. Write to PLAN.md:\n\n$INPUT"
     - agent: usopp
-      prompt: "Write failing tests for every atomic UI task — component rendering, user interactions, edge cases, accessibility. All tests MUST FAIL:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Write failing tests for every UI task — rendering, interactions, edge cases, a11y. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
     - agent: sanji
-      prompt: "Build the frontend. Make all failing tests pass. Follow the project's design system and existing patterns:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: usopp
-      prompt: "Run the full test suite. Validate all UI tasks pass. Check visual regressions, accessibility, responsive behavior:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
     - agent: law
-      prompt: "Review the frontend code for quality, component patterns, and maintainability:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: brook
-      prompt: "The frontend implementation cycle is complete (research → tests → build → QA → review):\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate project documentation: CLAUDE.md (project context, component patterns, design system notes), README.md (how to run frontend, test commands), INFRA.md (update if new services/routes added). Read existing docs first — surgically update."
+      optional: true
+      prompt: "Review frontend code: component patterns, maintainability. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
 
-deep-research:
-  description: "Multi-pass research — Robin decomposes, Benn Beckman validates, Vegapunk critiques"
+# research: multi-pass deep research
+research:
+  description: "Multi-pass research — Robin explores, Benn validates, Vegapunk synthesises"
   steps:
     - agent: robin
-      prompt: "Deep dive research on: $INPUT\n\nBreak the problem into sub-questions. For each: investigate, gather evidence, cite specific files and patterns."
+      prompt: "Deep research on: $INPUT\n\nBreak into sub-questions. For each: investigate, gather evidence, cite files and patterns."
     - agent: benn-beckman
-      prompt: "Validate and stress-test this research. Check the data, challenge assumptions, find what's missing. Are the conclusions supported by evidence?\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Stress-test this research. Check data, challenge assumptions, find gaps. Are conclusions supported?\n\n$INPUT\n\nOriginal: $ORIGINAL"
     - agent: vegapunk
-      prompt: "Final architecture review. Is this analysis sound? What's the recommended path forward? Concrete next steps:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      optional: true
+      prompt: "Final synthesis. Sound analysis? Research online for additional context. Concrete next steps. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
 
-security-audit:
-  description: "Full security review — Jinbe audits, Law validates, Robin mitigates, Brook documents"
+# audit: security review
+audit:
+  description: "Security audit — Jinbe finds, Law validates, Robin mitigates"
   steps:
     - agent: jinbe
-      prompt: "Full security audit of: $INPUT\n\nCheck OWASP Top 10, input validation, secrets, dependencies, access controls. Rate each finding by severity."
+      prompt: "Security audit of: $INPUT\n\nOWASP Top 10, input validation, secrets, access controls, deps. Rate each finding by severity."
     - agent: law
-      prompt: "Review the security findings. Are they valid? Anything missed? Prioritize and classify:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+      prompt: "Review findings. Valid? Anything missed? Prioritize.\n\n$INPUT\n\nOriginal: $ORIGINAL"
     - agent: robin
-      prompt: "Research mitigations and best practices for each security issue. Provide actionable remediation steps with code examples:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: brook
-      prompt: "A security audit was completed. Here are the findings, validation, and mitigations:\n\n$INPUT\n\nOriginal request: $ORIGINAL\n\nUpdate project documentation: CLAUDE.md (add security notes and known issues), INFRA.md (update security-relevant architecture details, note any recommended infrastructure changes). Do NOT update README.md unless the audit found issues with setup/running instructions."
+      prompt: "Research mitigations for each finding. Actionable remediation with code examples. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
 
-quant-analysis:
-  description: "Quantitative analysis — Benn Beckman analyzes, Robin researches context, Nami costs"
+# autoresearch: single-shot type-error fix loop (pi-builder)
+autoresearch:
+  description: "Fix TypeScript errors — read errors, fix one file, verify, commit or revert"
   steps:
-    - agent: benn-beckman
-      prompt: "Quantitative analysis of: $INPUT\n\nProvide numbers: Sharpe, win rate, drawdown, profit factor. Assess market regime. Identify failure modes."
-    - agent: robin
-      prompt: "Research additional context — market conditions, macro events, comparable strategies:\n\n$INPUT\n\nOriginal request: $ORIGINAL"
-    - agent: nami
-      prompt: "Cost and risk analysis. Position sizing? Capital at risk? Expected execution cost?\n\n$INPUT\n\nOriginal request: $ORIGINAL"
+    - agent: zoro
+      prompt: |
+        Autoresearch loop for pi-builder. Fix TypeScript type errors.
+
+        1. Run: bunx tsc 2>&1 | grep "error TS" | sed 's/(.*$//' | sort | uniq -c | sort -rn
+        2. Pick the file with the most errors.
+        3. Read the file and the errors carefully.
+        4. Make the minimal correct fix — no @ts-ignore, no `as any`.
+        5. Run: bunx tsc 2>&1 | grep "error TS" | wc -l
+        6. If errors decreased: git commit -m "fix: <description>"
+        7. If errors increased: git reset --soft HEAD~1 && git checkout <file>
+        8. Log result to results.tsv (tab-separated: commit, type_errors, target, status, description).
+        9. Repeat until errors reach 0 or you are interrupted.
+
+        Context: $INPUT

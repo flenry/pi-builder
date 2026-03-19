@@ -1,34 +1,35 @@
 full:
-  - scout
-  - planner
-  - builder
-  - reviewer
-  - documenter
-  - red-team
+  - robin
+  - usopp
+  - zoro
+  - law
+  - jinbe
 
-plan-build:
-  - planner
-  - builder
-  - reviewer
+build:
+  - robin
+  - usopp
+  - zoro
+  - law
 
 info:
-  - scout
-  - documenter
-  - reviewer
+  - robin
+  - law
 
 frontend:
-  - planner
-  - builder
+  - robin
+  - usopp
+  - sanji
   - bowser
 
-pi-pi:
-  - ext-expert
-  - theme-expert
-  - skill-expert
-  - config-expert
-  - tui-expert
-  - prompt-expert
-  - agent-expert
+research:
+  - robin
+  - benn-beckman
+  - vegapunk
+
+audit:
+  - jinbe
+  - law
+  - robin
 
 # ── Straw Hat Crews ──────────────────────────
 
@@ -44,26 +45,19 @@ straw-hats:
   - vegapunk
   - chopper
   - nami
-  - brook
   - benn-beckman
 
 dev-crew:
+  - robin
+  - usopp
   - zoro
   - sanji
-  - usopp
   - law
-  - vegapunk
-  - brook
 
 research-crew:
   - robin
   - benn-beckman
   - vegapunk
-
-ops-crew:
-  - franky
-  - chopper
-  - jinbe
 
 quant-crew:
   - benn-beckman
