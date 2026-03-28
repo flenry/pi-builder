@@ -241,7 +241,7 @@ else
 _PI_EXT="$HOME/code/pi-builder/extensions"
 
 pi-crew()     { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-team.ts"  -e "$_PI_EXT/theme-cycler.ts" "$@"; }
-pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }
+pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/scheduler.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }
 pi-full()     { PI_CHAIN=build                   pi-chain "$@"; }
 pi-cr()       { PI_CHAIN=cr                      pi-chain "$@"; }
 pi-research() { PI_CHAIN=research                pi-chain "$@"; }
