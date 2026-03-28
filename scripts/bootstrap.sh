@@ -198,6 +198,20 @@ else
   log "frontend-design already installed"
 fi
 
+# ── 6b. Global extensions ─────────────────────────
+sep
+info "Installing global extensions..."
+mkdir -p ~/.pi/agent/extensions
+
+if [[ -f ~/code/pi-builder/extensions/scheduler.ts ]]; then
+  sed '/import.*themeMap/d; /applyExtensionDefaults/d' \
+    ~/code/pi-builder/extensions/scheduler.ts \
+    > ~/.pi/agent/extensions/scheduler.ts
+  log "scheduler installed globally (~/.pi/agent/extensions/)"
+else
+  warn "scheduler.ts not found — skipping"
+fi
+
 # ── 7. Pi settings ────────────────────────────────
 sep
 info "Configuring pi settings..."
@@ -241,7 +255,7 @@ else
 _PI_EXT="$HOME/code/pi-builder/extensions"
 
 pi-crew()     { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-team.ts"  -e "$_PI_EXT/theme-cycler.ts" "$@"; }
-pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/scheduler.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }
+pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }
 pi-full()     { PI_CHAIN=build                   pi-chain "$@"; }
 pi-cr()       { PI_CHAIN=cr                      pi-chain "$@"; }
 pi-research() { PI_CHAIN=research                pi-chain "$@"; }
