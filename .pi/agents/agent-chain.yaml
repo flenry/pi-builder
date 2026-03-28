@@ -52,22 +52,6 @@ board-prd:
     - agent: robin
       prompt: "Synthesise everything into a final PRD. Include: Executive Summary, Problem Statement, Goals and Non-Goals, User Stories (prioritised), Technical Approach, Risks and Mitigations, Open Questions, Success Metrics, Phase Breakdown. Write to PRD.md.\n\nBoard findings: $INPUT\nOriginal topic: $ORIGINAL"
 
-# autoresearch: autonomous multi-pass research loop
-autoresearch:
-  description: "Autonomous research loop — Robin researches exhaustively across multiple passes until topic is fully covered"
-  steps:
-    - agent: robin
-      prompt: |
-        Autonomous research loop on: $INPUT
-
-        Work in passes until you have thorough coverage:
-        Pass 1 — Broad sweep: what do we know, what are the key sub-questions?
-        Pass 2 — Deep dive: investigate each sub-question with evidence.
-        Pass 3 — Gaps: what's still unknown or uncertain? Research those.
-        Pass 4 — Synthesis: compile findings into a structured research report.
-
-        Write findings to RESEARCH.md. Update PROGRESS.md when done.
-
 # ── Harness Chains ────────────────────────────────────────────────────────
 # Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
 
