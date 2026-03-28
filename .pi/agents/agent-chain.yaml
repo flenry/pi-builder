@@ -71,9 +71,9 @@ autoresearch:
 # ── Harness Chains ────────────────────────────────────────────────────────
 # Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
 
-# harness-build: full harness with git init, board plan review, TDD, evaluator loop, Law gate, README
+# harness-build: board planning phase + TDD build + evaluator loop + Brook docs
 harness-build:
-  description: "Full harness — git init, Robin plans, Vegapunk reviews, Usopp tests, Zoro builds with evaluator loop, Law reviews, Brook writes README"
+  description: "Full harness — board planning (Robin → Vegapunk → Law → Robin PLAN.md), Usopp tests, Zoro builds with evaluator loop, Brook writes README"
   steps:
     - agent: robin
       prompt: |
@@ -83,48 +83,49 @@ harness-build:
            Run: ls .git 2>/dev/null && echo "exists" || echo "not found"
 
         2. If NOT initialised:
-           - Run: git init
-           - Run: git checkout -b main
+           - Run: git init && git checkout -b main
            - Create a sensible .gitignore for the tech stack in this spec
-           - If an origin URL was provided in the spec, run:
-             git remote add origin <URL>
-             git push -u origin main
-           - Otherwise note: "No origin URL provided — push manually when ready"
+           - If an origin URL is in the spec, run: git remote add origin <URL>
+           - Otherwise note: "No origin URL — push manually when ready"
 
-        3. Read this product spec carefully. Decompose into atomic testable tasks.
-           Write PLAN.md with task breakdown, test guidance, and phase order.
+        3. Research the problem space: read any existing files, understand constraints, identify unknowns and risks.
 
-        4. Run: git add -A && git commit -m "chore: initialise project + PLAN.md"
+        4. Write a structured brief for the board covering:
+           - Context and problem statement
+           - Proposed approach and tech stack
+           - Key unknowns and risks
+           - Questions for Vegapunk (architecture/research) and Law (strategy/trade-offs)
 
-        Spec:
-        $INPUT
+        5. Run: git add -A && git commit -m "chore: project init"
+
+        Spec: $INPUT
     - agent: vegapunk
-      optional: true
-      prompt: "Review PLAN.md for architectural soundness. Correct approach? Any technical risks? Research online if needed. Flag issues or approve.\n\nSpec: $ORIGINAL\nPlan: $INPUT"
+      prompt: "You are the board's research director. Robin has briefed you on this project. Search the web for: best practices for this stack, competing solutions, relevant libraries, known pitfalls, and anything that should influence the architecture. Bring external knowledge.\n\nRobin's brief: $INPUT\n\nOriginal spec: $ORIGINAL"
+    - agent: law
+      prompt: "You are the board's analytical strategist. You have Robin's brief and Vegapunk's research. Analyse the proposed approach: challenge assumptions, identify risks, evaluate trade-offs, stress-test the plan. Rate feasibility and flag anything that would cause problems during implementation.\n\nBrief + research: $INPUT\n\nOriginal spec: $ORIGINAL"
+    - agent: robin
+      prompt: "You've heard from your board. Vegapunk brought external research, Law provided analytical critique. Now synthesise everything into a final PLAN.md — atomic testable tasks, implementation order, test guidance, and phase breakdown. Address the risks Law flagged. Commit: git add PLAN.md && git commit -m \"plan: PLAN.md from board session\"\n\nBoard findings: $INPUT\nOriginal spec: $ORIGINAL"
     - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation. Commit when done: git add -A && git commit -m \"test: failing tests for all tasks\"\n\nSpec: $ORIGINAL\nPlan review: $INPUT"
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation. Commit: git add -A && git commit -m \"test: failing tests for all tasks\"\n\nPlan: $INPUT\nOriginal spec: $ORIGINAL"
     - generator: zoro
       evaluator: evaluator
       generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing. Commit each completed task: git add -A && git commit -m \"feat: <task name>\"\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
       evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 5
       pass_threshold: 7
-    - agent: law
-      optional: true
-      prompt: "Final code review gate. Surgical review: patterns, correctness, maintainability, test quality. Approve or flag blockers.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
     - agent: brook
       prompt: |
         The project build is complete. Write two files:
 
-        1. README.md — a proper project README including:
+        1. README.md — a proper project README:
            - Project name and one-line description
-           - What it does (from the spec)
+           - What it does
            - Tech stack
            - Prerequisites
-           - How to install: exact commands
+           - How to install (exact commands)
            - How to run (dev and production)
            - How to run tests
-           - Environment variables needed (if any)
+           - Environment variables (if any)
            - Project structure overview
 
         2. CLAUDE.md — AI re-entry context:
@@ -134,7 +135,7 @@ harness-build:
            - How to run and test
            - Current state and what's been built
 
-        Then commit: git add -A && git commit -m "docs: README.md and CLAUDE.md"
+        Commit: git add -A && git commit -m "docs: README.md and CLAUDE.md"
 
         Spec: $ORIGINAL
         Build output: $INPUT
