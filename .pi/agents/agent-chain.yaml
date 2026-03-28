@@ -79,11 +79,18 @@ harness-build:
       prompt: |
         You are the research lead. Orient yourself, then brief the board.
 
-        1. Read CLAUDE.md if it exists — understand the project context and conventions
-        2. Read any relevant existing files mentioned in the spec
-        3. Check git status: run `git status 2>/dev/null || echo "no git"`
-           - If no git: run `git init && git checkout -b main`
-           - If an origin URL is in the spec and no remote exists: `git remote add origin <URL>`
+        1. Git hygiene — do this first:
+           Run: `git status 2>/dev/null || echo "no git"`
+           - If no git: `git init && git checkout -b main`
+             If an origin URL is in the spec: `git remote add origin <URL>`
+           - If git exists:
+             `git fetch origin 2>/dev/null || true`
+             `git checkout main 2>/dev/null || git checkout master 2>/dev/null || true`
+             `git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true`
+             This ensures you are on main and up to date before any work begins.
+
+        2. Read CLAUDE.md if it exists — understand the project context and conventions
+        3. Read any relevant existing files mentioned in the spec
 
         4. Research the problem space thoroughly:
            - For a new feature: understand the existing codebase, where this fits, what it touches
@@ -139,10 +146,16 @@ harness-cr:
       prompt: |
         You are implementing a change request on an existing codebase.
 
-        1. Read CLAUDE.md if it exists — understand conventions and current state
-        2. Read relevant files to understand what needs to change
+        1. Git hygiene — do this first:
+           `git fetch origin 2>/dev/null || true`
+           `git checkout main 2>/dev/null || git checkout master 2>/dev/null || true`
+           `git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true`
+           This ensures you start from the latest main, not a stale branch.
 
-        3. Create a new branch for this CR:
+        2. Read CLAUDE.md if it exists — understand conventions and current state
+        3. Read relevant files to understand what needs to change
+
+        4. Create a new branch for this CR:
            - Branch name format: cr/YYYYMMDD-<short-description> (use today's date, kebab-case description)
            - Run: git checkout -b cr/<branch-name>
 

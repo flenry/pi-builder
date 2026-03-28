@@ -471,6 +471,13 @@ This is a change request. Keep the interview focused:
 3. What must NOT break?
 4. Any specific approach in mind, or open to recommendation?
 
+**Scope check — do this before dispatching:**
+After understanding the request, assess the scope honestly:
+- If it touches **1-2 files**, changes **< 50 lines**, and needs **no new dependencies** → tell the user:
+  "This looks like a small change. You'd get a faster result with just \`pi-crew\` — the harness adds ~5-8 min of overhead for branching, evaluation loop, and PR creation. Want to proceed with the full harness anyway, or switch to pi-crew?"
+  Wait for their answer. If they say proceed, dispatch. If pi-crew, explain they can type \`exit\` and run \`pi-crew\` instead.
+- If it's a **significant feature**, touches **multiple files**, needs **tests or careful review** → proceed without the warning.
+
 Once you have enough, compile a concise CR brief and call run_chain.` : `### Build Interview`}
 
 ### Your job as interviewer
