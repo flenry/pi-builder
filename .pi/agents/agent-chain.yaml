@@ -139,6 +139,25 @@ harness-build:
       evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 5
       pass_threshold: 7
+    - agent: usopp
+      prompt: |
+        Zoro has finished implementing. Run the full test suite and verify everything is green.
+
+        1. Read PLAN.md — confirm every task has test coverage
+        2. Run ALL tests:
+           - Unit/integration: npm test, bun test, pytest — whatever the project uses
+           - Frontend/E2E: npx playwright test (if frontend exists)
+        3. For any failing tests: do NOT fix the implementation yourself — document exactly what failed and why
+        4. Report clearly:
+           - Total tests: X
+           - Passed: X
+           - Failed: X (list them with error messages)
+           - Coverage: X% (if available)
+        5. If all pass: "✅ All X tests passing — ready for review"
+        6. If any fail: "❌ X tests failing — Zoro needs to fix before merge"
+
+        Spec: $ORIGINAL
+        Build output: $INPUT
     - agent: brook
       prompt: |
         The build is complete. Update documentation and finalise git.
