@@ -83,11 +83,18 @@ harness-build:
            Run: `git status 2>/dev/null || echo "no git"`
            - If no git: `git init && git checkout -b main`
              If an origin URL is in the spec: `git remote add origin <URL>`
+             This is a NEW project — commit directly to main throughout.
            - If git exists:
              `git fetch origin 2>/dev/null || true`
              `git checkout main 2>/dev/null || git checkout master 2>/dev/null || true`
              `git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true`
-             This ensures you are on main and up to date before any work begins.
+             Check if this is a new or existing project:
+             Run: `git log --oneline -1 2>/dev/null || echo "no commits"`
+             - If no commits or only 1 init commit: NEW project — work on main directly
+             - If existing commits: EXISTING project — create a feature branch:
+               `git checkout -b feat/YYYYMMDD-<short-description>`
+               (use today's date, kebab-case description from the spec)
+             Store whether this is new or existing — Brook will need to know.
 
         2. Read CLAUDE.md if it exists — understand the project context and conventions
         3. Read any relevant existing files mentioned in the spec
@@ -98,6 +105,7 @@ harness-build:
 
         5. Write a structured board brief covering:
            - Context (what exists, what's being added/built)
+           - Whether this is a NEW or EXISTING project (important for Brook)
            - Problem statement and goals
            - Proposed approach and tech stack
            - Key unknowns and risks
@@ -111,7 +119,20 @@ harness-build:
     - agent: robin
       prompt: "You've heard from your board. Vegapunk brought external research, Law provided analytical critique. Now synthesise everything into a final PLAN.md — atomic testable tasks, implementation order, test guidance, and phase breakdown. Address every risk Law flagged. Commit the plan: git add -A && git commit -m \"plan: board-reviewed PLAN.md\"\n\nBoard findings: $INPUT\nOriginal spec: $ORIGINAL"
     - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation. Commit: git add -A && git commit -m \"test: failing tests for all tasks\"\n\nPlan: $INPUT\nOriginal spec: $ORIGINAL"
+      prompt: |
+        Write failing tests for every task in PLAN.md.
+
+        IMPORTANT: Read PLAN.md directly from disk — do not rely solely on the context passed to you,
+        as it may be truncated. Run: read the file at PLAN.md.
+
+        Then:
+        1. For every task in PLAN.md, write tests covering happy paths, edge cases, and error states
+        2. Run the test suite — ALL new tests MUST FAIL (no implementation yet)
+        3. If any test passes immediately, it is wrong — fix it so it fails
+        4. Commit: git add -A && git commit -m "test: failing tests for all tasks"
+        5. Report: X tests written, all failing as expected
+
+        Original spec: $ORIGINAL
     - generator: zoro
       evaluator: evaluator
       generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing. Commit each completed task: git add -A && git commit -m \"feat: <task name>\"\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
@@ -120,7 +141,7 @@ harness-build:
       pass_threshold: 7
     - agent: brook
       prompt: |
-        The build is complete. Update documentation to reflect the current state.
+        The build is complete. Update documentation and finalise git.
 
         1. CLAUDE.md (always) — read existing first, then surgically update:
            - What this project is and what was just added/changed
@@ -134,6 +155,15 @@ harness-build:
            - If README EXISTS: surgically update only the sections affected by this build. Preserve everything else.
 
         3. Commit: git add -A && git commit -m "docs: update README and CLAUDE.md"
+
+        4. Git finalisation — check whether this was a NEW or EXISTING project (Robin noted this in the build output):
+           - NEW project (no prior commits when Robin started):
+             Push to main: git push -u origin main
+             No PR needed.
+           - EXISTING project (had commits, Robin created a feat/ branch):
+             Push branch: git push -u origin HEAD
+             Create PR: gh pr create --title "<feature title from spec>" --body "<summary of what was built, how to run it, what changed>"
+             Print the PR URL clearly.
 
         Spec: $ORIGINAL
         Build output: $INPUT
