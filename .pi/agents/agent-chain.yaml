@@ -2,9 +2,9 @@
 # Use /chain to pick a workflow at runtime.
 # optional: true steps are skipped when fast=true is passed to run_chain.
 
-# recon: single Robin call — explore, verify, generate SYSTEM-MAP.html
+# recon: deep codebase exploration
 recon:
-  description: "Deep codebase recon — explore, verify, generate SYSTEM-MAP.html"
+  description: "Deep codebase recon — explore, validate, generate SYSTEM-MAP.html"
   steps:
     - agent: robin
       prompt: |
@@ -16,19 +16,22 @@ recon:
 
         Finish: update PROGRESS.md with findings.
 
-# plan: decompose and optionally review
+# plan: decompose → board review → final plan
 plan:
-  description: "Decompose task into a reviewed implementation plan"
+  description: "Planning — Robin decomposes, Vegapunk reviews architecture, Law reviews logic, Robin finalises PLAN.md"
   steps:
     - agent: robin
-      prompt: "Decompose this into atomic, testable tasks. Write to PLAN.md with task breakdown, outcomes, and test guidance:\n\n$INPUT"
+      prompt: "Decompose this into atomic, testable tasks. Write PLAN.md with task breakdown, outcomes, and test guidance:\n\n$INPUT"
+    - agent: vegapunk
+      optional: true
+      prompt: "Review PLAN.md for architectural soundness. Is the approach correct? Research online if needed. Flag any technical risks or better alternatives.\n\nOriginal: $ORIGINAL\nPlan: $INPUT"
     - agent: law
       optional: true
-      prompt: "Review PLAN.md. Are tasks atomic and testable? Outcomes measurable? Missing edge cases? Optimal order? Update PLAN.md with review notes. Append to PROGRESS.md.\n\nOriginal: $ORIGINAL"
+      prompt: "Review PLAN.md for logical completeness. Are tasks atomic and testable? Missing edge cases? Optimal order? Update PLAN.md with review notes.\n\nOriginal: $ORIGINAL\nReview: $INPUT"
 
-# build: plan → tests → implement (lean TDD)
+# build: lean TDD without harness loop
 build:
-  description: "TDD build — plan, failing tests, implement. Review optional."
+  description: "Lean TDD — Robin plans, Usopp writes tests, Zoro implements, Law reviews"
   steps:
     - agent: robin
       prompt: "Decompose into atomic testable tasks. Write to PLAN.md:\n\n$INPUT"
@@ -39,20 +42,6 @@ build:
     - agent: law
       optional: true
       prompt: "Code review: quality, patterns, correctness, test coverage. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-
-# frontend: plan → tests → UI build → review
-frontend:
-  description: "Frontend TDD — plan, tests, build UI, review"
-  steps:
-    - agent: robin
-      prompt: "Decompose frontend requirements into atomic, testable UI tasks. Write to PLAN.md:\n\n$INPUT"
-    - agent: usopp
-      prompt: "Write failing tests for every UI task — rendering, interactions, edge cases, a11y. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: sanji
-      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: law
-      optional: true
-      prompt: "Review frontend code: component patterns, maintainability. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
 
 # research: multi-pass deep research
 research:
@@ -77,79 +66,88 @@ audit:
     - agent: robin
       prompt: "Research mitigations for each finding. Actionable remediation with code examples. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
 
-# autoresearch: single-shot type-error fix loop (pi-builder)
-autoresearch:
-  description: "Fix TypeScript errors — read errors, fix one file, verify, commit or revert"
-  steps:
-    - agent: zoro
-      prompt: |
-        Autoresearch loop for pi-builder. Fix TypeScript type errors.
-
-        1. Run: bunx tsc 2>&1 | grep "error TS" | sed 's/(.*$//' | sort | uniq -c | sort -rn
-        2. Pick the file with the most errors.
-        3. Read the file and the errors carefully.
-        4. Make the minimal correct fix — no @ts-ignore, no `as any`.
-        5. Run: bunx tsc 2>&1 | grep "error TS" | wc -l
-        6. If errors decreased: git commit -m "fix: <description>"
-        7. If errors increased: git reset --soft HEAD~1 && git checkout <file>
-        8. Log result to results.tsv (tab-separated: commit, type_errors, target, status, description).
-        9. Repeat until errors reach 0 or you are interrupted.
-
-        Context: $INPUT
-
-# ── Harness Chains (generator-evaluator loops) ────────────────────────────
-# Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
-
-harness-build:
-  description: "Full harness — Robin plans, Usopp writes tests, Zoro builds with evaluator loop until score >= 7/10"
-  steps:
-    - agent: robin
-      prompt: "Read this product spec carefully. Decompose into atomic testable tasks. Write PLAN.md with task breakdown, test guidance, and phase order:\n\n$INPUT"
-    - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation:\n\nSpec: $ORIGINAL\nPlan: $INPUT"
-    - generator: zoro
-      evaluator: evaluator
-      generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique (if any):\n$CRITIQUE"
-      evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation output: $INPUT"
-      max_iterations: 5
-      pass_threshold: 7
-
-harness-frontend:
-  description: "Frontend harness — Robin plans, Usopp writes tests, Sanji builds with evaluator loop"
-  steps:
-    - agent: robin
-      prompt: "Read this product spec. Decompose frontend requirements into atomic testable UI tasks. Write PLAN.md:\n\n$INPUT"
-    - agent: usopp
-      prompt: "Write failing tests for every UI task — rendering, interactions, a11y, edge cases. All MUST FAIL:\n\nSpec: $ORIGINAL\nPlan: $INPUT"
-    - generator: sanji
-      evaluator: evaluator
-      generator_prompt: "Build the frontend until all tests pass. Follow the design language from the spec closely.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious critique:\n$CRITIQUE"
-      evaluator_prompt: "Evaluate frontend implementation. Check: tests pass, design matches spec intent, no template defaults, all features present.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
-      max_iterations: 5
-      pass_threshold: 7
-
-harness-quick:
-  description: "Quick harness — direct build-evaluate loop, no TDD. Use when tests aren't the focus."
-  steps:
-    - generator: zoro
-      evaluator: evaluator
-      generator_prompt: "Build this product. Work through features systematically. Run any existing tests.\n\nSpec: $INPUT\n\nPrevious critique:\n$CRITIQUE"
-      evaluator_prompt: "Evaluate implementation against the spec. Run tests if they exist. Score strictly.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
-      max_iterations: 4
-      pass_threshold: 7
-
-# ── Board Chain ──────────────────────────────────────────────────────────
-# Robin briefs the board (Vegapunk + Law), each brings their specialist lens,
-# then Robin synthesises everything into a final PRD.
-
+# board-prd: CEO-board PRD workflow
 board-prd:
-  description: "CEO-Board PRD — Robin researches, Vegapunk web-researches, Law analyses, Robin produces final PRD"
+  description: "CEO-Board PRD — Robin briefs, Vegapunk web-researches, Law analyses, Robin produces final PRD.md"
   steps:
     - agent: robin
       prompt: "You are briefing your board on this topic. Research it thoroughly — read the codebase, understand the problem space, identify unknowns. Produce a structured brief covering: context, problem statement, key unknowns, and the questions you want the board to weigh in on.\n\nTopic: $INPUT"
     - agent: vegapunk
-      prompt: "You are the board's research director. Robin has briefed you on this topic. Search the web for: current best practices, competing solutions, relevant research, industry standards, and any technical constraints Robin may have missed. Bring external knowledge and fresh perspective.\n\nRobin's brief: $INPUT\n\nOriginal topic: $ORIGINAL"
+      prompt: "You are the board's research director. Robin has briefed you. Search the web for: current best practices, competing solutions, relevant research, industry standards, and anything Robin may have missed. Bring external knowledge and fresh perspective.\n\nRobin's brief: $INPUT\n\nOriginal topic: $ORIGINAL"
     - agent: law
-      prompt: "You are the board's analytical strategist. You have Robin's research brief and Vegapunk's external research. Apply rigorous analytical thinking: challenge assumptions, identify risks, evaluate trade-offs, stress-test the approaches. Be blunt. Rate each option by feasibility, risk, and strategic fit.\n\nRobin's brief + Vegapunk's research: $INPUT\n\nOriginal topic: $ORIGINAL"
+      prompt: "You are the board's analytical strategist. Apply rigorous analytical thinking: challenge assumptions, identify risks, evaluate trade-offs, stress-test the approaches. Be blunt. Rate each option by feasibility, risk, and strategic fit.\n\nBrief + research: $INPUT\n\nOriginal topic: $ORIGINAL"
     - agent: robin
-      prompt: "You are back as CEO. You've heard from your board: Vegapunk brought external research, Law provided analytical critique. Now synthesise everything into a final PRD (Product Requirements Document).\n\nPRD must include:\n1. Executive Summary (1 paragraph)\n2. Problem Statement\n3. Goals and Non-Goals\n4. User Stories (prioritised)\n5. Technical Approach (informed by board input)\n6. Risks and Mitigations (from Law's analysis)\n7. Open Questions\n8. Success Metrics\n9. Phase Breakdown (Phase 1 MVP → later phases)\n\nWrite to PRD.md.\n\nBoard findings: $INPUT\nOriginal topic: $ORIGINAL"
+      prompt: "Synthesise everything into a final PRD. Include: Executive Summary, Problem Statement, Goals and Non-Goals, User Stories (prioritised), Technical Approach, Risks and Mitigations, Open Questions, Success Metrics, Phase Breakdown. Write to PRD.md.\n\nBoard findings: $INPUT\nOriginal topic: $ORIGINAL"
+
+# autoresearch: autonomous loop — research a topic deeply and produce findings
+autoresearch:
+  description: "Autonomous research loop — Robin researches a topic exhaustively across multiple passes until satisfied"
+  steps:
+    - agent: robin
+      prompt: |
+        Autonomous research loop on: $INPUT
+
+        Work in passes until you have thorough coverage:
+        Pass 1 — Broad sweep: what do we know, what are the key sub-questions?
+        Pass 2 — Deep dive: investigate each sub-question with evidence.
+        Pass 3 — Gaps: what's still unknown or uncertain? Research those.
+        Pass 4 — Synthesis: compile findings into a structured research report.
+
+        Write findings to RESEARCH.md. Update PROGRESS.md when done.
+
+# ts-fix: TypeScript error fix loop (pi-builder specific)
+ts-fix:
+  description: "TypeScript fix loop — reads errors, fixes one file at a time, commits or reverts"
+  steps:
+    - agent: zoro
+      prompt: |
+        Fix TypeScript type errors in this codebase.
+
+        1. Run: bunx tsc 2>&1 | grep "error TS" | sed 's/(.*$//' | sort | uniq -c | sort -rn
+        2. Pick the file with the most errors.
+        3. Read the file and errors carefully.
+        4. Make the minimal correct fix — no @ts-ignore, no `as any`.
+        5. Run: bunx tsc 2>&1 | grep "error TS" | wc -l
+        6. If errors decreased: git commit -m "fix: <description>"
+        7. If errors increased: git reset --soft HEAD~1 && git checkout <file>
+        8. Log to results.tsv (tab-separated: commit, type_errors, target, status, description).
+        9. Repeat until errors reach 0 or interrupted.
+
+        Context: $INPUT
+
+# ── Harness Chains ────────────────────────────────────────────────────────
+# Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
+
+# harness-build: full harness — plan reviewed by board, TDD, evaluator loop, Law final gate
+harness-build:
+  description: "Full harness — Robin plans, Vegapunk reviews architecture, Usopp tests, Zoro builds with evaluator loop, Law final gate"
+  steps:
+    - agent: robin
+      prompt: "Read this product spec. Decompose into atomic testable tasks. Write PLAN.md with task breakdown, test guidance, and phase order:\n\n$INPUT"
+    - agent: vegapunk
+      optional: true
+      prompt: "Review PLAN.md for architectural soundness. Correct approach? Any technical risks? Research online if needed. Flag issues or approve.\n\nSpec: $ORIGINAL\nPlan: $INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation:\n\nSpec: $ORIGINAL\nPlan review: $INPUT"
+    - generator: zoro
+      evaluator: evaluator
+      generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
+      max_iterations: 5
+      pass_threshold: 7
+    - agent: law
+      optional: true
+      prompt: "Final code review gate. The evaluator loop has passed. Do a surgical review: patterns, correctness, maintainability, test quality. Approve or flag blockers. Append to PROGRESS.md.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
+
+# harness-cr: change request — targeted change on existing codebase, no full planning
+harness-cr:
+  description: "Change request harness — implement a specific change with evaluator loop. No full planning pipeline."
+  steps:
+    - agent: robin
+      prompt: "Read CLAUDE.md and the relevant files. Understand the existing codebase context. Write a concise implementation plan for this change request — what to change, what to preserve, what tests to update:\n\n$INPUT"
+    - generator: zoro
+      evaluator: evaluator
+      generator_prompt: "Implement this change request precisely. Follow existing patterns. Don't break anything else.\n\nCR: $ORIGINAL\nImplementation plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate this change request implementation. Does it do exactly what was asked? Does it break anything? Run tests.\n\nOriginal CR: $ORIGINAL\nImplementation: $INPUT"
+      max_iterations: 3
+      pass_threshold: 7
