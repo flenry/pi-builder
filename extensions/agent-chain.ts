@@ -1414,11 +1414,38 @@ ${standardWorkflow}`;
 
 		const flow = activeChain!.steps.map(s => displayName(stepLabel(s))).join(" → ");
 		_ctx.ui.setStatus("agent-chain", `Chain: ${activeChain!.name} (${activeChain!.steps.length} steps)`);
+
+		const chainList = chains.map(c => {
+			const arrow = c.name === activeChain!.name ? "▶" : " ";
+			return `${arrow} ${c.name.padEnd(14)} ${c.description}`;
+		}).join("\n");
+
 		_ctx.ui.notify(
-			`Chain: ${activeChain!.name}\n${activeChain!.description}\n${flow}\n\n` +
-			`/chain             Switch chain\n` +
-			`/chain-list        List all chains\n` +
-			`/chain-stats       View token/time telemetry`,
+			`━━ Workflow Guide ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+			`\n` +
+			`  New project (vague idea)   /skill:seed → build\n` +
+			`  New project (complex)      /skill:seed → board-prd → build\n` +
+			`  Big new feature            recon → board-prd → build\n` +
+			`  Medium feature             recon → build\n` +
+			`  Bug fix / small change     cr  (warns if too small → use pi-crew)\n` +
+			`  Architecture decision      board-prd\n` +
+			`  Understand codebase        recon\n` +
+			`\n` +
+			`━━ Chains ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+			`\n` +
+			chainList + `\n` +
+			`\n` +
+			`━━ Skills ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+			`\n` +
+			`  /skill:seed          Guided ideation → PLANNING.md\n` +
+			`  /skill:paul          Plan-Apply-Unify structured dev loop\n` +
+			`  /skill:ohara         Install/manage skills and agents\n` +
+			`\n` +
+			`━━ Commands ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+			`\n` +
+			`  /chain               Switch active chain\n` +
+			`  /chain-list          List chains with full step details\n` +
+			`  /chain-stats         Token and time telemetry\n`,
 			"info",
 		);
 
