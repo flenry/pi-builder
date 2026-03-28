@@ -138,7 +138,7 @@ harness-build:
       generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing. Commit each completed task: git add -A && git commit -m \"feat: <task name>\"\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
       evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 5
-      pass_threshold: 7
+      pass_threshold: 8
     - agent: usopp
       prompt: |
         Zoro has finished implementing. Run the full test suite and verify everything is green.
@@ -222,7 +222,7 @@ harness-cr:
       generator_prompt: "Implement this CR precisely. Follow existing patterns. Don't break anything else. Commit each meaningful change: git add -A && git commit -m \"<type>: <description>\"\n\nCR: $ORIGINAL\nPlan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
       evaluator_prompt: "Evaluate this CR implementation. Does it do exactly what was asked? Does it break anything? Run tests. Is the git history clean?\n\nOriginal CR: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 3
-      pass_threshold: 7
+      pass_threshold: 8
     - agent: brook
       prompt: |
         The change request implementation is complete and the evaluator has approved it.
