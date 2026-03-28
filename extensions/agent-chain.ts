@@ -418,7 +418,6 @@ export default function (pi: ExtensionAPI) {
 
 	// Per-step state for the active chain
 	let stepStates: StepState[] = [];
-	let pendingReset = false;
 
 	// ── Step 3: Cached dispatcher system prompt ──
 	let cachedDispatcherPrompt: string | null = null;
@@ -633,10 +632,7 @@ ${standardWorkflow}`;
 		}));
 		// Step 3: build and cache dispatcher prompt when chain changes
 		cachedDispatcherPrompt = buildDispatcherPrompt();
-		// Skip widget re-registration if reset is pending — let before_agent_start handle it
-		if (!pendingReset) {
-			updateWidget();
-		}
+		updateWidget();
 	}
 
 	// ── Compact Progress Rendering ───────────────
@@ -1273,19 +1269,6 @@ ${standardWorkflow}`;
 	// ── System Prompt Override ───────────────────
 
 	pi.on("before_agent_start", async (_event, _ctx) => {
-		// Force widget reset on first turn after /new
-		if (pendingReset && activeChain) {
-			pendingReset = false;
-			widgetCtx = _ctx;
-			stepStates = activeChain.steps.map(s => ({
-				agent: stepLabel(s),
-				status: "pending" as const,
-				elapsed: 0,
-				lastWork: "",
-			}));
-			updateWidget();
-		}
-
 		if (!activeChain) return {};
 
 		// Step 3: return cached dispatcher prompt — built once in activateChain, not rebuilt every turn
@@ -1303,11 +1286,10 @@ ${standardWorkflow}`;
 		_ctx.ui.setWidget("agent-chain", undefined);
 		widgetCtx = _ctx;
 
-		// Reset execution state — widget re-registration deferred to before_agent_start
+		// Reset execution state
 		stepStates = [];
 		activeChain = null;
 		cachedDispatcherPrompt = null;
-		pendingReset = true;
 
 		// Wipe chain session files — reset agent context on /new and launch
 		const sessDir = join(_ctx.cwd, ".pi", "agent-sessions");
