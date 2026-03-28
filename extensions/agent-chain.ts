@@ -53,12 +53,26 @@ interface ChainStep {
 	agent: string;
 	prompt: string;
 	optional?: boolean;
+	role?: "planner"; // pre-chain spec expansion step
 }
+
+interface LoopStep {
+	type: "loop";
+	generator: string;
+	evaluator: string;
+	generatorPrompt: string;
+	evaluatorPrompt: string;
+	maxIterations: number;
+	passThreshold: number; // 0-10
+	optional?: boolean;
+}
+
+type AnyStep = ChainStep | LoopStep;
 
 interface ChainDef {
 	name: string;
 	description: string;
-	steps: ChainStep[];
+	steps: AnyStep[];
 }
 
 interface AgentDef {
@@ -74,7 +88,9 @@ interface StepState {
 	status: "pending" | "running" | "done" | "error" | "skipped";
 	elapsed: number;
 	lastWork: string;
-	merged?: boolean; // true if this step was collapsed from multiple consecutive steps
+	merged?: boolean;
+	iteration?: number;   // current loop iteration (loop steps only)
+	score?: number;       // evaluator score (loop steps only)
 }
 
 interface TelemetryEntry {
@@ -93,76 +109,73 @@ function displayName(name: string): string {
 	return name.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+function stepLabel(s: AnyStep): string {
+	if ("type" in s && s.type === "loop") {
+		return `${(s as LoopStep).generator} ⟳ ${(s as LoopStep).evaluator}`;
+	}
+	return (s as ChainStep).agent;
+}
+
+function isLoop(s: AnyStep): s is LoopStep {
+	return "type" in s && (s as any).type === "loop";
+}
+
 // ── Chain YAML Parser ────────────────────────────
 
+function unquote(s: string): string {
+	const t = s.trim();
+	if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'")))
+		return t.slice(1, -1);
+	return t;
+}
+
 function parseChainYaml(raw: string): ChainDef[] {
+	// Use yaml parser for reliability
+	const { parse } = require("yaml") as typeof import("yaml");
+	const parsed = parse(raw) as Record<string, any>;
+	if (!parsed || typeof parsed !== "object") return [];
+
 	const chains: ChainDef[] = [];
-	let current: ChainDef | null = null;
-	let currentStep: ChainStep | null = null;
 
-	for (const line of raw.split("\n")) {
-		// Chain name: top-level key
-		const chainMatch = line.match(/^(\S[^:]*):$/);
-		if (chainMatch) {
-			if (current && currentStep) {
-				current.steps.push(currentStep);
-				currentStep = null;
+	for (const [name, def] of Object.entries(parsed)) {
+		if (!def || typeof def !== "object") continue;
+		const chain: ChainDef = {
+			name,
+			description: def.description ?? "",
+			steps: [],
+		};
+
+		for (const rawStep of (def.steps ?? [])) {
+			if (!rawStep) continue;
+
+			// Loop step: has generator + evaluator keys
+			if (rawStep.loop !== undefined || (rawStep.generator && rawStep.evaluator)) {
+				const s = rawStep.loop ?? rawStep;
+				chain.steps.push({
+					type: "loop",
+					generator: s.generator ?? "",
+					evaluator: s.evaluator ?? "",
+					generatorPrompt: (s.generator_prompt ?? s.generatorPrompt ?? "").replace(/\\n/g, "\n"),
+					evaluatorPrompt: (s.evaluator_prompt ?? s.evaluatorPrompt ?? "").replace(/\\n/g, "\n"),
+					maxIterations: s.max_iterations ?? s.maxIterations ?? 3,
+					passThreshold: s.pass_threshold ?? s.passThreshold ?? 7,
+					optional: s.optional ?? false,
+				} as LoopStep);
+				continue;
 			}
-			current = { name: chainMatch[1].trim(), description: "", steps: [] };
-			chains.push(current);
-			continue;
-		}
 
-		// Chain description
-		const descMatch = line.match(/^\s+description:\s+(.+)$/);
-		if (descMatch && current && !currentStep) {
-			let desc = descMatch[1].trim();
-			if ((desc.startsWith('"') && desc.endsWith('"')) ||
-				(desc.startsWith("'") && desc.endsWith("'"))) {
-				desc = desc.slice(1, -1);
+			// Regular step
+			if (rawStep.agent) {
+				chain.steps.push({
+					agent: rawStep.agent,
+					prompt: (rawStep.prompt ?? "").replace(/\\n/g, "\n"),
+					optional: rawStep.optional ?? false,
+					role: rawStep.role,
+				} as ChainStep);
 			}
-			current.description = desc;
-			continue;
 		}
 
-		// "steps:" label — skip
-		if (line.match(/^\s+steps:\s*$/) && current) {
-			continue;
-		}
-
-		// Step agent line
-		const agentMatch = line.match(/^\s+-\s+agent:\s+(.+)$/);
-		if (agentMatch && current) {
-			if (currentStep) {
-				current.steps.push(currentStep);
-			}
-			currentStep = { agent: agentMatch[1].trim(), prompt: "" };
-			continue;
-		}
-
-		// Step optional flag
-		const optionalMatch = line.match(/^\s+optional:\s+(true|false)$/);
-		if (optionalMatch && currentStep) {
-			currentStep.optional = optionalMatch[1] === "true";
-			continue;
-		}
-
-		// Step prompt line
-		const promptMatch = line.match(/^\s+prompt:\s+(.+)$/);
-		if (promptMatch && currentStep) {
-			let prompt = promptMatch[1].trim();
-			if ((prompt.startsWith('"') && prompt.endsWith('"')) ||
-				(prompt.startsWith("'") && prompt.endsWith("'"))) {
-				prompt = prompt.slice(1, -1);
-			}
-			prompt = prompt.replace(/\\n/g, "\n");
-			currentStep.prompt = prompt;
-			continue;
-		}
-	}
-
-	if (current && currentStep) {
-		current.steps.push(currentStep);
+		chains.push(chain);
 	}
 
 	return chains;
@@ -240,15 +253,26 @@ function scanAgentDirs(cwd: string): Map<string, AgentDef> {
  * Prompts are joined with labelled section headers (## Pass 1, ## Pass 2, ...)
  * so the agent still processes each sub-task in order.
  */
-function collapseConsecutiveSteps(steps: ChainStep[]): ChainStep[] {
-	const collapsed: ChainStep[] = [];
+function collapseConsecutiveSteps(steps: AnyStep[]): AnyStep[] {
+	const collapsed: AnyStep[] = [];
 	let i = 0;
 	while (i < steps.length) {
 		const current = steps[i];
-		const group = [current];
+		// Loop steps are never collapsed
+		if ("type" in current && current.type === "loop") {
+			collapsed.push(current);
+			i++;
+			continue;
+		}
+		const cs = current as ChainStep;
+		const group: ChainStep[] = [cs];
 		let j = i + 1;
-		while (j < steps.length && steps[j].agent === current.agent) {
-			group.push(steps[j]);
+		while (
+			j < steps.length &&
+			!("type" in steps[j]) &&
+			(steps[j] as ChainStep).agent === cs.agent
+		) {
+			group.push(steps[j] as ChainStep);
 			j++;
 		}
 		if (group.length > 1) {
@@ -256,12 +280,12 @@ function collapseConsecutiveSteps(steps: ChainStep[]): ChainStep[] {
 				.map((s, idx) => `## Pass ${idx + 1}\n${s.prompt}`)
 				.join("\n\n---\n\n");
 			collapsed.push({
-				agent: current.agent,
+				agent: cs.agent,
 				prompt: mergedPrompt,
-				optional: current.optional,
-			});
+				optional: cs.optional,
+			} as ChainStep);
 		} else {
-			collapsed.push(current);
+			collapsed.push(cs);
 		}
 		i = j;
 	}
@@ -350,29 +374,31 @@ export default function (pi: ExtensionAPI) {
 	function buildDispatcherPrompt(): string {
 		if (!activeChain) return "";
 
-		const flow = activeChain.steps.map(s => displayName(s.agent)).join(" → ");
+		const flow = activeChain.steps.map(s => displayName(stepLabel(s))).join(" → ");
 		const desc = activeChain.description ? `\n${activeChain.description}` : "";
 
 		// Short step list — no full system prompt text, just name + description + optional flag
 		const steps = activeChain.steps.map((s, i) => {
-			const agentDef = allAgents.get(s.agent.toLowerCase());
-			const agentDesc = agentDef?.description || "";
+			const label = stepLabel(s);
+			const agentDef = allAgents.get(label.toLowerCase());
+			const agentDesc = agentDef?.description || (isLoop(s) ? `Generator-evaluator loop (${s.maxIterations} max iterations, threshold ${s.passThreshold}/10)` : "");
 			const optionalTag = s.optional ? " *(optional — skipped in fast mode)*" : "";
-			return `${i + 1}. **${displayName(s.agent)}**${optionalTag} — ${agentDesc}`;
+			return `${i + 1}. **${displayName(label)}**${optionalTag} — ${agentDesc}`;
 		}).join("\n");
 
 		// Agent catalog: description + tools only — no full system prompt
 		const seen = new Set<string>();
 		const agentCatalog = activeChain.steps
 			.filter(s => {
-				const key = s.agent.toLowerCase();
+				const key = stepLabel(s).toLowerCase();
 				if (seen.has(key)) return false;
 				seen.add(key);
 				return true;
 			})
 			.map(s => {
-				const agentDef = allAgents.get(s.agent.toLowerCase());
-				if (!agentDef) return `### ${displayName(s.agent)}\nAgent not found.`;
+				const label = stepLabel(s);
+				const agentDef = allAgents.get(label.toLowerCase());
+				if (!agentDef) return `### ${displayName(label)}\nAgent not found.`;
 				return `### ${displayName(agentDef.name)}\n${agentDef.description}\n**Tools:** ${agentDef.tools}`;
 			})
 			.join("\n\n");
@@ -447,7 +473,7 @@ ${agentCatalog}
 	function activateChain(chain: ChainDef) {
 		activeChain = chain;
 		stepStates = chain.steps.map(s => ({
-			agent: s.agent,
+			agent: stepLabel(s),
 			status: "pending" as const,
 			elapsed: 0,
 			lastWork: "",
@@ -688,6 +714,104 @@ ${agentCatalog}
 		}
 	}
 
+	// ── Score Parser ────────────────────────────
+	/**
+	 * Extract a numeric score from evaluator output.
+	 * Looks for patterns like "SCORE: 7/10", "Score: 8", "7/10", "7 out of 10"
+	 */
+	function parseScore(output: string): number | null {
+		const patterns = [
+			/SCORE:\s*(\d+(?:\.\d+)?)\s*\/\s*10/i,
+			/SCORE:\s*(\d+(?:\.\d+)?)/i,
+			/(\d+(?:\.\d+)?)\s*\/\s*10/,
+			/(\d+(?:\.\d+)?)\s+out\s+of\s+10/i,
+			/rating[:\s]+(\d+(?:\.\d+)?)/i,
+		];
+		for (const re of patterns) {
+			const m = output.match(re);
+			if (m) {
+				const n = parseFloat(m[1]);
+				if (n >= 0 && n <= 10) return n;
+			}
+		}
+		return null;
+	}
+
+	// ── Run Loop Step ────────────────────────────
+	/**
+	 * Generator-evaluator loop. The generator builds, the evaluator scores.
+	 * If score < threshold: critique feeds back to generator for another iteration.
+	 * Continues until score >= threshold OR maxIterations reached.
+	 */
+	async function runLoopStep(
+		loop: LoopStep,
+		input: string,
+		originalPrompt: string,
+		stepIndex: number,
+		ctx: any,
+	): Promise<{ output: string; exitCode: number; elapsed: number }> {
+		const startTime = Date.now();
+		const state = stepStates[stepIndex];
+
+		const generatorDef = allAgents.get(loop.generator.toLowerCase());
+		const evaluatorDef = allAgents.get(loop.evaluator.toLowerCase());
+
+		if (!generatorDef) return { output: `Loop generator agent "${loop.generator}" not found`, exitCode: 1, elapsed: 0 };
+		if (!evaluatorDef) return { output: `Loop evaluator agent "${loop.evaluator}" not found`, exitCode: 1, elapsed: 0 };
+
+		let currentInput = input;
+		let lastOutput = "";
+		let critique = "";
+
+		for (let iter = 1; iter <= loop.maxIterations; iter++) {
+			state.iteration = iter;
+			state.lastWork = `Iteration ${iter}/${loop.maxIterations} — generating...`;
+			updateWidget();
+
+			// Build generator prompt
+			const genPrompt = loop.generatorPrompt
+				.replace(/\$INPUT/g, currentInput)
+				.replace(/\$ORIGINAL/g, originalPrompt)
+				.replace(/\$CRITIQUE/g, critique || "(no critique yet — first iteration)")
+				.replace(/\$ITERATION/g, String(iter));
+
+			const genResult = await runAgent(generatorDef, genPrompt, stepIndex, ctx);
+			if (genResult.exitCode !== 0) return genResult;
+			lastOutput = genResult.output;
+
+			state.lastWork = `Iteration ${iter}/${loop.maxIterations} — evaluating...`;
+			updateWidget();
+
+			// Build evaluator prompt
+			const evalPrompt = loop.evaluatorPrompt
+				.replace(/\$INPUT/g, lastOutput)
+				.replace(/\$ORIGINAL/g, originalPrompt)
+				.replace(/\$ITERATION/g, String(iter));
+
+			const evalResult = await runAgent(evaluatorDef, evalPrompt, stepIndex, ctx);
+			if (evalResult.exitCode !== 0) return evalResult;
+
+			const score = parseScore(evalResult.output);
+			state.score = score ?? undefined;
+			const scoreStr = score !== null ? `${score}/10` : "?/10";
+
+			if (score !== null && score >= loop.passThreshold) {
+				state.lastWork = `✓ Score ${scoreStr} — passed threshold (${loop.passThreshold}/10) on iteration ${iter}`;
+				updateWidget();
+				return { output: lastOutput, exitCode: 0, elapsed: Date.now() - startTime };
+			}
+
+			critique = evalResult.output;
+			state.lastWork = `Score ${scoreStr} — below threshold, iterating...`;
+			updateWidget();
+		}
+
+		// Exhausted iterations — return best output with warning
+		state.lastWork = `⚠ Max iterations (${loop.maxIterations}) reached. Score: ${state.score ?? "?"}/${loop.passThreshold} threshold`;
+		updateWidget();
+		return { output: lastOutput, exitCode: 0, elapsed: Date.now() - startTime };
+	}
+
 	// ── Run Chain (sequential pipeline) ─────────
 
 	async function runChain(
@@ -705,21 +829,23 @@ ${agentCatalog}
 		const effectiveSteps = collapseConsecutiveSteps(activeChain.steps);
 
 		// Rebuild stepStates to match effective (possibly collapsed) steps
-		stepStates = effectiveSteps.map((s, i) => {
-			const originalCount = activeChain!.steps.filter((os, oi) => {
-				// find if this was a collapsed step
-				return os.agent === s.agent;
-			}).length;
-			const merged = originalCount > 1 &&
-				activeChain!.steps.filter(os => os.agent === s.agent).length > 1 &&
-				effectiveSteps.filter(es => es.agent === s.agent).length <
-				activeChain!.steps.filter(os => os.agent === s.agent).length;
+		stepStates = effectiveSteps.map((s) => {
+			const isLoop = "type" in s && s.type === "loop";
+			const label = isLoop
+				? `${(s as LoopStep).generator} ⟳ ${(s as LoopStep).evaluator}`
+				: (s as ChainStep).agent;
+			const merged = !isLoop && (() => {
+				const cs = s as ChainStep;
+				return activeChain!.steps.filter(os => !("type" in os) && (os as ChainStep).agent === cs.agent).length > 1 &&
+					effectiveSteps.filter(es => !("type" in es) && (es as ChainStep).agent === cs.agent).length <
+					activeChain!.steps.filter(os => !("type" in os) && (os as ChainStep).agent === cs.agent).length;
+			})();
 			return {
-				agent: s.agent,
+				agent: label,
 				status: "pending" as const,
 				elapsed: 0,
 				lastWork: "",
-				merged,
+				merged: merged || false,
 			};
 		});
 		updateWidget();
@@ -730,7 +856,7 @@ ${agentCatalog}
 		for (let i = 0; i < effectiveSteps.length; i++) {
 			const step = effectiveSteps[i];
 
-			// Step 8: skip optional steps in fast mode
+			// Skip optional steps in fast mode
 			if (fast && step.optional) {
 				stepStates[i].status = "skipped";
 				stepStates[i].lastWork = "skipped (fast mode)";
@@ -741,42 +867,61 @@ ${agentCatalog}
 			stepStates[i].status = "running";
 			updateWidget();
 
-			// Step 4: externalize $ORIGINAL if it's large
+			// ── Loop step ────────────────────────
+			if ("type" in step && step.type === "loop") {
+				const result = await runLoopStep(step as LoopStep, input, originalPrompt, i, ctx);
+				if (result.exitCode !== 0) {
+					stepStates[i].status = "error";
+					updateWidget();
+					return { output: `Error in loop step: ${result.output}`, success: false, elapsed: Date.now() - chainStart };
+				}
+				stepStates[i].status = "done";
+				updateWidget();
+				input = result.output;
+				continue;
+			}
+
+			// ── Regular step ─────────────────────
+			const cs = step as ChainStep;
+
 			const externalOriginal = externalizeIfLarge(
 				originalPrompt,
 				join(sessionDir, `original-${i}.txt`),
 			);
 
-			// Resolve prompt substitutions
-			let resolvedPrompt = step.prompt
+			let resolvedPrompt = cs.prompt
 				.replace(/\$INPUT/g, input)
 				.replace(/\$ORIGINAL/g, externalOriginal);
 
-			// Step 4: externalize the full resolved prompt if it's still too large
 			resolvedPrompt = externalizeIfLarge(
 				resolvedPrompt,
-				join(sessionDir, `task-${step.agent}-${i}.txt`),
+				join(sessionDir, `task-${cs.agent}-${i}.txt`),
 			);
 
-			const agentDef = allAgents.get(step.agent.toLowerCase());
+			const agentDef = allAgents.get(cs.agent.toLowerCase());
 			if (!agentDef) {
 				stepStates[i].status = "error";
-				stepStates[i].lastWork = `Agent "${step.agent}" not found`;
+				stepStates[i].lastWork = `Agent "${cs.agent}" not found`;
 				updateWidget();
 				return {
-					output: `Error at step ${i + 1}: Agent "${step.agent}" not found. Available: ${Array.from(allAgents.keys()).join(", ")}`,
+					output: `Error at step ${i + 1}: Agent "${cs.agent}" not found. Available: ${Array.from(allAgents.keys()).join(", ")}`,
 					success: false,
 					elapsed: Date.now() - chainStart,
 				};
 			}
 
-			const result = await runAgent(agentDef, resolvedPrompt, i, ctx);
+			// Planner role: inject ambition directive
+			const plannerPrefix = cs.role === "planner"
+				? "You are a project planner. Expand this raw prompt into a full, AMBITIOUS product spec. Include: feature list, AI integration opportunities, design language, and technical approach. Be specific. Do NOT over-specify implementation details.\n\n"
+				: "";
+
+			const result = await runAgent(agentDef, plannerPrefix + resolvedPrompt, i, ctx);
 
 			if (result.exitCode !== 0) {
 				stepStates[i].status = "error";
 				updateWidget();
 				return {
-					output: `Error at step ${i + 1} (${step.agent}): ${result.output}`,
+					output: `Error at step ${i + 1} (${cs.agent}): ${result.output}`,
 					success: false,
 					elapsed: Date.now() - chainStart,
 				};
@@ -896,7 +1041,7 @@ ${agentCatalog}
 			}
 
 			const options = chains.map(c => {
-				const steps = c.steps.map(s => displayName(s.agent)).join(" → ");
+				const steps = c.steps.map(s => displayName(stepLabel(s))).join(" → ");
 				const desc = c.description ? ` — ${c.description}` : "";
 				return `${c.name}${desc} (${steps})`;
 			});
@@ -906,7 +1051,7 @@ ${agentCatalog}
 
 			const idx = options.indexOf(choice);
 			activateChain(chains[idx]);
-			const flow = chains[idx].steps.map(s => displayName(s.agent)).join(" → ");
+			const flow = chains[idx].steps.map(s => displayName(stepLabel(s))).join(" → ");
 			ctx.ui.setStatus("agent-chain", `Chain: ${chains[idx].name} (${chains[idx].steps.length} steps)`);
 			ctx.ui.notify(
 				`Chain: ${chains[idx].name}\n${chains[idx].description}\n${flow}`,
@@ -927,7 +1072,7 @@ ${agentCatalog}
 			const list = chains.map(c => {
 				const desc = c.description ? `  ${c.description}` : "";
 				const steps = c.steps.map((s, i) =>
-					`  ${i + 1}. ${displayName(s.agent)}${s.optional ? " (optional)" : ""}`
+					`  ${i + 1}. ${displayName(stepLabel(s))}${s.optional ? " (optional)" : ""}${isLoop(s) ? ` [loop ≤${s.maxIterations} iters, threshold ${s.passThreshold}/10]` : ""}`
 				).join("\n");
 				return `${c.name}:${desc ? "\n" + desc : ""}\n${steps}`;
 			}).join("\n\n");
@@ -996,7 +1141,7 @@ ${agentCatalog}
 			pendingReset = false;
 			widgetCtx = _ctx;
 			stepStates = activeChain.steps.map(s => ({
-				agent: s.agent,
+				agent: stepLabel(s),
 				status: "pending" as const,
 				elapsed: 0,
 				lastWork: "",
@@ -1071,7 +1216,7 @@ ${agentCatalog}
 
 		// run_chain is registered as a tool — available alongside all default tools
 
-		const flow = activeChain!.steps.map(s => displayName(s.agent)).join(" → ");
+		const flow = activeChain!.steps.map(s => displayName(stepLabel(s))).join(" → ");
 		_ctx.ui.setStatus("agent-chain", `Chain: ${activeChain!.name} (${activeChain!.steps.length} steps)`);
 		_ctx.ui.notify(
 			`Chain: ${activeChain!.name}\n${activeChain!.description}\n${flow}\n\n` +

@@ -96,3 +96,57 @@ autoresearch:
         9. Repeat until errors reach 0 or you are interrupted.
 
         Context: $INPUT
+
+# ── Harness Chains (generator-evaluator loops) ─────────────────────────────
+# These chains include a spec-planner step and a generator-evaluator loop.
+# The loop runs until the evaluator score >= pass_threshold or max_iterations reached.
+
+# harness-build: full harness — spec expand → plan → TDD loop with evaluator
+harness-build:
+  description: "Full harness — spec-planner expands prompt, Robin plans, then Zoro builds with evaluator loop until quality threshold met"
+  steps:
+    - agent: spec-planner
+      role: planner
+      prompt: "$INPUT"
+    - agent: robin
+      prompt: "Read the product spec above. Decompose into atomic testable tasks. Write PLAN.md with task breakdown, test guidance, and phase order:\n\n$INPUT\n\nSpec from planner:\n$INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation:\n\nSpec: $ORIGINAL\nPlan output: $INPUT"
+    - generator: zoro
+      evaluator: evaluator
+      generator_prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique (if any):\n$CRITIQUE"
+      evaluator_prompt: "Evaluate the implementation. Run tests. Check for stubs, missing features, code quality.\n\nOriginal spec: $ORIGINAL\nImplementation output: $INPUT"
+      max_iterations: 5
+      pass_threshold: 7
+
+# harness-frontend: spec → plan → frontend build loop
+harness-frontend:
+  description: "Frontend harness — spec-planner expands, Robin plans, Sanji builds with evaluator loop"
+  steps:
+    - agent: spec-planner
+      role: planner
+      prompt: "$INPUT"
+    - agent: robin
+      prompt: "Read the product spec. Decompose frontend requirements into atomic testable UI tasks. Write PLAN.md:\n\n$INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every UI task — rendering, interactions, a11y, edge cases. All MUST FAIL:\n\nSpec: $ORIGINAL\nPlan: $INPUT"
+    - generator: sanji
+      evaluator: evaluator
+      generator_prompt: "Build the frontend until all tests pass. Follow the design language from the spec.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate frontend implementation. Check: tests pass, design language matches spec, no template defaults, all features implemented.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
+      max_iterations: 5
+      pass_threshold: 7
+
+# harness-quick: spec → direct build loop (no TDD, faster)
+harness-quick:
+  description: "Quick harness — spec-planner then direct build-evaluate loop. No TDD step."
+  steps:
+    - agent: spec-planner
+      role: planner
+      prompt: "$INPUT"
+    - generator: zoro
+      evaluator: evaluator
+      generator_prompt: "Build this product spec. Work through features systematically. Run any tests that exist.\n\nSpec: $INPUT\n\nPrevious critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate implementation against the spec. Run tests. Score strictly.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
+      max_iterations: 4
+      pass_threshold: 7
