@@ -353,6 +353,58 @@ function appendTelemetry(entry: TelemetryEntry, telemetryPath: string) {
 	} catch {}
 }
 
+// ── Progress Logging ─────────────────────────────
+/**
+ * Appends a progress entry to progress/YYYYMMDD.md in the project root.
+ * Creates the file with a header if it doesn't exist yet today.
+ * Format: ## HH:MM — chain: agent (status)
+ */
+function logProgress(opts: {
+	cwd: string;
+	chain: string;
+	agent: string;
+	status: "done" | "error" | "skipped";
+	output: string;
+	elapsed: number;
+	iteration?: number;
+	score?: number;
+}) {
+	try {
+		const now = new Date();
+		const date = now.toISOString().slice(0, 10).replace(/-/g, "");
+		const time = now.toTimeString().slice(0, 5);
+		const progressDir = join(opts.cwd, "progress");
+		if (!existsSync(progressDir)) mkdirSync(progressDir, { recursive: true });
+
+		const filePath = join(progressDir, `${date}.md`);
+		const isNew = !existsSync(filePath);
+
+		const header = isNew
+			? `# Progress — ${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}\n\n`
+			: "";
+
+		const elapsedStr = opts.elapsed > 60000
+			? `${Math.round(opts.elapsed / 60000)}m`
+			: `${Math.round(opts.elapsed / 1000)}s`;
+
+		const scoreStr = opts.score !== undefined ? ` score ${opts.score}/10` : "";
+		const iterStr = opts.iteration !== undefined ? ` iter ${opts.iteration}` : "";
+		const statusIcon = opts.status === "done" ? "✓" : opts.status === "error" ? "✗" : "⊘";
+
+		// Summary: first non-empty line of output, max 120 chars
+		const summary = opts.output
+			.split("\n")
+			.map(l => l.trim())
+			.filter(Boolean)
+			.pop()
+			?.slice(0, 120) ?? "(no output)";
+
+		const entry = `## ${time} — ${opts.chain}: ${opts.agent} ${statusIcon} (${elapsedStr}${iterStr}${scoreStr})\n${summary}\n\n`;
+
+		writeFileSync(filePath, header + (isNew ? "" : readFileSync(filePath, "utf-8")) + entry, "utf-8");
+	} catch {}
+}
+
 // ── Extension ────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -405,10 +457,21 @@ export default function (pi: ExtensionAPI) {
 
 		const isHarness = activeChain.name.startsWith("harness-");
 
+		const isCR = activeChain.name === "harness-cr";
+
 		const harnessInterview = !isHarness ? "" : `
 ## Interview Protocol — REQUIRED before calling run_chain
 
-This is a harness chain. Before dispatching to the pipeline, you MUST conduct a structured interview to gather everything the builder agents need. Do NOT call run_chain until the interview is complete.
+This is a harness chain. Before dispatching to the pipeline, you MUST conduct a structured interview. Do NOT call run_chain until the interview is complete.
+
+${isCR ? `### CR Interview
+This is a change request. Keep the interview focused:
+1. What exactly needs to change? (be precise — file, function, behaviour)
+2. Why? What problem does it solve?
+3. What must NOT break?
+4. Any specific approach in mind, or open to recommendation?
+
+Once you have enough, compile a concise CR brief and call run_chain.` : `### Build Interview`}
 
 ### Your job as interviewer
 You are a senior product engineer and tech lead. You think with the user, not at them. Offer concrete suggestions. Push back on vague answers. Tell them what you'd choose and why. You're opinionated — share your opinions.
@@ -473,7 +536,9 @@ PROJECT SPEC: [Name]
 [Later phases]
 \`\`\`
 
-Then call run_chain with this full spec as the task.
+Then call run_chain with this full spec as the task. Include the GitHub origin URL at the top if provided (format: "GitHub origin: <url>" or "GitHub origin: none").
+
+${!isCR ? `**Important:** Always ask for a GitHub origin URL — "Do you have a GitHub repo URL for this project? (or skip if you'll set it up later)"` : ""}
 
 ### Rules for the interview
 - Be conversational — this is a dialogue, not a form
@@ -948,6 +1013,7 @@ ${standardWorkflow}`;
 			if (fast && step.optional) {
 				stepStates[i].status = "skipped";
 				stepStates[i].lastWork = "skipped (fast mode)";
+				logProgress({ cwd: ctx.cwd, chain: activeChain.name, agent: stepLabel(step), status: "skipped", output: "skipped (fast mode)", elapsed: 0 });
 				updateWidget();
 				continue;
 			}
@@ -960,10 +1026,12 @@ ${standardWorkflow}`;
 				const result = await runLoopStep(step as LoopStep, input, originalPrompt, i, ctx);
 				if (result.exitCode !== 0) {
 					stepStates[i].status = "error";
+					logProgress({ cwd: ctx.cwd, chain: activeChain.name, agent: stepLabel(step), status: "error", output: result.output, elapsed: result.elapsed });
 					updateWidget();
 					return { output: `Error in loop step: ${result.output}`, success: false, elapsed: Date.now() - chainStart };
 				}
 				stepStates[i].status = "done";
+				logProgress({ cwd: ctx.cwd, chain: activeChain.name, agent: stepLabel(step), status: "done", output: result.output, elapsed: result.elapsed, iteration: stepStates[i].iteration, score: stepStates[i].score });
 				updateWidget();
 				input = result.output;
 				continue;
@@ -1007,6 +1075,7 @@ ${standardWorkflow}`;
 
 			if (result.exitCode !== 0) {
 				stepStates[i].status = "error";
+				logProgress({ cwd: ctx.cwd, chain: activeChain.name, agent: cs.agent, status: "error", output: result.output, elapsed: result.elapsed });
 				updateWidget();
 				return {
 					output: `Error at step ${i + 1} (${cs.agent}): ${result.output}`,
@@ -1016,6 +1085,7 @@ ${standardWorkflow}`;
 			}
 
 			stepStates[i].status = "done";
+			logProgress({ cwd: ctx.cwd, chain: activeChain.name, agent: cs.agent, status: "done", output: result.output, elapsed: result.elapsed });
 			updateWidget();
 
 			input = result.output;

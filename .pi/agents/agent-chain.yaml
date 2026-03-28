@@ -71,36 +71,116 @@ autoresearch:
 # ── Harness Chains ────────────────────────────────────────────────────────
 # Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
 
-# harness-build: full harness with board plan review, TDD, evaluator loop, Law final gate
+# harness-build: full harness with git init, board plan review, TDD, evaluator loop, Law gate, README
 harness-build:
-  description: "Full harness — Robin plans, Vegapunk reviews architecture, Usopp tests, Zoro builds with evaluator loop, Law final gate"
+  description: "Full harness — git init, Robin plans, Vegapunk reviews, Usopp tests, Zoro builds with evaluator loop, Law reviews, Brook writes README"
   steps:
     - agent: robin
-      prompt: "Read this product spec. Decompose into atomic testable tasks. Write PLAN.md with task breakdown, test guidance, and phase order:\n\n$INPUT"
+      prompt: |
+        You are starting a new project. Do this in order:
+
+        1. Check if git is already initialised:
+           Run: ls .git 2>/dev/null && echo "exists" || echo "not found"
+
+        2. If NOT initialised:
+           - Run: git init
+           - Run: git checkout -b main
+           - Create a sensible .gitignore for the tech stack in this spec
+           - If an origin URL was provided in the spec, run:
+             git remote add origin <URL>
+             git push -u origin main
+           - Otherwise note: "No origin URL provided — push manually when ready"
+
+        3. Read this product spec carefully. Decompose into atomic testable tasks.
+           Write PLAN.md with task breakdown, test guidance, and phase order.
+
+        4. Run: git add -A && git commit -m "chore: initialise project + PLAN.md"
+
+        Spec:
+        $INPUT
     - agent: vegapunk
       optional: true
       prompt: "Review PLAN.md for architectural soundness. Correct approach? Any technical risks? Research online if needed. Flag issues or approve.\n\nSpec: $ORIGINAL\nPlan: $INPUT"
     - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation:\n\nSpec: $ORIGINAL\nPlan review: $INPUT"
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation. Commit when done: git add -A && git commit -m \"test: failing tests for all tasks\"\n\nSpec: $ORIGINAL\nPlan review: $INPUT"
     - generator: zoro
       evaluator: evaluator
-      generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
+      generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing. Commit each completed task: git add -A && git commit -m \"feat: <task name>\"\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
       evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 5
       pass_threshold: 7
     - agent: law
       optional: true
-      prompt: "Final code review gate. The evaluator loop has passed. Do a surgical review: patterns, correctness, maintainability, test quality. Approve or flag blockers. Append to PROGRESS.md.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
+      prompt: "Final code review gate. Surgical review: patterns, correctness, maintainability, test quality. Approve or flag blockers.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
+    - agent: brook
+      prompt: |
+        The project build is complete. Write two files:
 
-# harness-cr: change request — targeted change on existing codebase
+        1. README.md — a proper project README including:
+           - Project name and one-line description
+           - What it does (from the spec)
+           - Tech stack
+           - Prerequisites
+           - How to install: exact commands
+           - How to run (dev and production)
+           - How to run tests
+           - Environment variables needed (if any)
+           - Project structure overview
+
+        2. CLAUDE.md — AI re-entry context:
+           - What this project is
+           - Tech stack and conventions
+           - Key files and their roles
+           - How to run and test
+           - Current state and what's been built
+
+        Then commit: git add -A && git commit -m "docs: README.md and CLAUDE.md"
+
+        Spec: $ORIGINAL
+        Build output: $INPUT
+
+# harness-cr: change request — new branch, implement with evaluator loop, push + PR
 harness-cr:
-  description: "Change request — Robin scopes the change, Zoro implements with evaluator loop"
+  description: "Change request — Robin branches + scopes, Zoro implements with evaluator loop, Brook pushes and creates PR"
   steps:
     - agent: robin
-      prompt: "Read CLAUDE.md and the relevant files. Understand the existing codebase context. Write a concise implementation plan for this change request — what to change, what to preserve, what tests to update:\n\n$INPUT"
+      prompt: |
+        You are implementing a change request on an existing codebase.
+
+        1. Read CLAUDE.md if it exists — understand conventions and current state
+        2. Read relevant files to understand what needs to change
+
+        3. Create a new branch for this CR:
+           - Branch name format: cr/YYYYMMDD-<short-description> (use today's date, kebab-case description)
+           - Run: git checkout -b cr/<branch-name>
+
+        4. Write a concise implementation plan:
+           - What to change and why
+           - What to preserve (don't break)
+           - What tests need updating or adding
+           - Definition of done
+
+        5. Commit the plan: git add PLAN.md && git commit -m "chore: CR plan"
+
+        CR: $INPUT
     - generator: zoro
       evaluator: evaluator
-      generator_prompt: "Implement this change request precisely. Follow existing patterns. Don't break anything else.\n\nCR: $ORIGINAL\nImplementation plan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
-      evaluator_prompt: "Evaluate this change request implementation. Does it do exactly what was asked? Does it break anything? Run tests.\n\nOriginal CR: $ORIGINAL\nImplementation: $INPUT"
+      generator_prompt: "Implement this CR precisely. Follow existing patterns. Don't break anything else. Commit each meaningful change: git add -A && git commit -m \"<type>: <description>\"\n\nCR: $ORIGINAL\nPlan: $INPUT\n\nPrevious evaluator critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate this CR implementation. Does it do exactly what was asked? Does it break anything? Run tests. Is the git history clean?\n\nOriginal CR: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 3
       pass_threshold: 7
+    - agent: brook
+      prompt: |
+        The change request implementation is complete and the evaluator has approved it.
+
+        1. Run the full test suite one final time and confirm it passes
+        2. Push the branch: git push -u origin HEAD
+        3. Create a pull request using gh CLI if available:
+           gh pr create --title "<CR title>" --body "<summary of changes>"
+           If gh is not available, output the exact URL to create the PR manually.
+        4. Print the PR URL or creation instructions clearly.
+        5. Update CLAUDE.md if any conventions or architecture changed.
+        6. Append a summary to progress/YYYYMMDD.md (create if needed).
+
+        CR: $ORIGINAL
+        Implementation summary: $INPUT
