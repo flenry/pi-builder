@@ -23,9 +23,17 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import {
+	createAgentSession,
+	SessionManager,
+	AuthStorage,
+	ModelRegistry,
+	DefaultResourceLoader,
+	createReadOnlyTools,
+	readTool, bashTool, editTool, writeTool, grepTool, findTool, lsTool,
+} from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { spawn } from "child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync } from "fs";
 import { join, resolve } from "path";
 import { homedir } from "os";
@@ -544,130 +552,140 @@ ${agentCatalog}
 		});
 	}
 
-	// ── Run Agent (subprocess) ──────────────────
+	// ── Tool resolution ──────────────────────────
 
-	function runAgent(
+	function resolveTools(toolsStr: string, cwd: string) {
+		const names = toolsStr.split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+		const toolMap: Record<string, any> = { read: readTool, bash: bashTool, edit: editTool, write: writeTool, grep: grepTool, find: findTool, ls: lsTool };
+		const resolved: any[] = [];
+		for (const name of names) {
+			if (toolMap[name]) resolved.push(toolMap[name]);
+		}
+		return resolved.length > 0 ? resolved : createReadOnlyTools(cwd);
+	}
+
+	// ── Run Agent (in-process SDK) ───────────────
+
+	async function runAgent(
 		agentDef: AgentDef,
 		task: string,
 		stepIndex: number,
 		ctx: any,
 	): Promise<{ output: string; exitCode: number; elapsed: number }> {
-		// Use agent-specific model if defined, otherwise fall back to parent's model
-		const model = agentDef.model
+		const modelStr = agentDef.model
 			? agentDef.model
 			: ctx.model
 				? `${ctx.model.provider}/${ctx.model.id}`
 				: "openrouter/google/gemini-3-flash-preview";
 
 		const agentKey = agentDef.name.toLowerCase().replace(/\s+/g, "-");
-		const agentSessionFile = join(sessionDir, `chain-${agentKey}.json`);
+		const agentSessionFile = join(sessionDir, `chain-${agentKey}.jsonl`);
 		const hasSession = agentSessions.get(agentKey);
 
-		const args = [
-			"--mode", "json",
-			"-p",
-			"--no-extensions",
-			"--model", model,
-			"--tools", agentDef.tools,
-			"--thinking", "off",
-			// Step 2: only append system prompt on fresh sessions — not on resumes
-			...(hasSession ? [] : ["--append-system-prompt", agentDef.systemPrompt]),
-			"--session", agentSessionFile,
-		];
-
-		if (hasSession) {
-			args.push("-c");
-		}
-
-		args.push(task);
-
-		const textChunks: string[] = [];
 		const startTime = Date.now();
 		const state = stepStates[stepIndex];
+		const textChunks: string[] = [];
 
-		return new Promise((resolve) => {
-			const proc = spawn("pi", args, {
-				stdio: ["ignore", "pipe", "pipe"],
-				env: { ...process.env },
+		try {
+			// Resolve model from "provider/model-id" string
+			const authStorage = AuthStorage.create();
+			const modelRegistry = new ModelRegistry(authStorage);
+			// Parse "provider/model-id" — split on first slash
+			const slashIdx = modelStr.indexOf("/");
+			const provider = slashIdx !== -1 ? modelStr.slice(0, slashIdx) : "anthropic";
+			const modelId  = slashIdx !== -1 ? modelStr.slice(slashIdx + 1) : modelStr;
+			const model = modelRegistry.find(provider, modelId)
+				?? modelRegistry.getAvailable()[0];
+			if (!model) {
+				return { output: `Model not found: ${modelStr}`, exitCode: 1, elapsed: Date.now() - startTime };
+			}
+			const thinkingLevel = "off";
+
+			// Resolve tools
+			const tools = resolveTools(agentDef.tools, ctx.cwd ?? process.cwd());
+
+			// Session manager — continue existing or start fresh
+			const cwd = ctx.cwd ?? process.cwd();
+			const sessionManager = hasSession
+				? SessionManager.open(agentSessionFile)
+				: SessionManager.create(cwd);
+
+			// Inject system prompt via resource loader on fresh sessions only
+			const agentSystemPrompt = agentDef.systemPrompt;
+			const loader = new DefaultResourceLoader({
+				cwd,
+				...(!hasSession && agentSystemPrompt
+					? { appendSystemPromptOverride: () => [agentSystemPrompt] }
+					: {}),
+			});
+			await loader.reload();
+
+			const { session } = await createAgentSession({
+				cwd,
+				model,
+				thinkingLevel: "off",
+				tools,
+				sessionManager,
+				resourceLoader: loader,
 			});
 
+			// Timer for widget updates
 			const timer = setInterval(() => {
 				state.elapsed = Date.now() - startTime;
 				updateWidget();
 			}, 1000);
 
-			let buffer = "";
-
-			proc.stdout!.setEncoding("utf-8");
-			proc.stdout!.on("data", (chunk: string) => {
-				buffer += chunk;
-				const lines = buffer.split("\n");
-				buffer = lines.pop() || "";
-				for (const line of lines) {
-					if (!line.trim()) continue;
-					try {
-						const event = JSON.parse(line);
-						if (event.type === "message_update") {
-							const delta = event.assistantMessageEvent;
-							if (delta?.type === "text_delta") {
-								textChunks.push(delta.delta || "");
-								const full = textChunks.join("");
-								const last = full.split("\n").filter((l: string) => l.trim()).pop() || "";
-								state.lastWork = last;
-								updateWidget();
-							}
-						}
-					} catch {}
+			// Stream output
+			const unsub = session.subscribe((event: any) => {
+				if (event.type === "message_update") {
+					const delta = event.assistantMessageEvent;
+					if (delta?.type === "text_delta" && delta.delta) {
+						textChunks.push(delta.delta);
+						const full = textChunks.join("");
+						const last = full.split("\n").filter((l: string) => l.trim()).pop() || "";
+						state.lastWork = last;
+						updateWidget();
+					}
 				}
 			});
 
-			proc.stderr!.setEncoding("utf-8");
-			proc.stderr!.on("data", () => {});
+			await session.prompt(task);
+			await session.agent.waitForIdle();
 
-			proc.on("close", (code) => {
-				if (buffer.trim()) {
-					try {
-						const event = JSON.parse(buffer);
-						if (event.type === "message_update") {
-							const delta = event.assistantMessageEvent;
-							if (delta?.type === "text_delta") textChunks.push(delta.delta || "");
-						}
-					} catch {}
-				}
+			unsub();
+			clearInterval(timer);
 
-				clearInterval(timer);
-				const elapsed = Date.now() - startTime;
-				state.elapsed = elapsed;
-				const output = textChunks.join("");
-				state.lastWork = output.split("\n").filter((l: string) => l.trim()).pop() || "";
+			const elapsed = Date.now() - startTime;
+			state.elapsed = elapsed;
+			const output = textChunks.join("");
+			state.lastWork = output.split("\n").filter((l: string) => l.trim()).pop() || "";
 
-				if (code === 0) {
-					agentSessions.set(agentKey, agentSessionFile);
-				}
+			// Persist session file path for next run
+			agentSessions.set(agentKey, session.sessionFile ?? agentSessionFile);
 
-				// Step 0: log telemetry entry
-				appendTelemetry({
-					timestamp: new Date().toISOString(),
-					chain: activeChain?.name ?? "unknown",
-					agent: agentDef.name,
-					model,
-					promptChars: task.length,
-					outputChars: output.length,
-					elapsedMs: elapsed,
-				}, telemetryPath);
+			session.dispose();
 
-				resolve({ output, exitCode: code ?? 1, elapsed });
-			});
+			// Telemetry
+			appendTelemetry({
+				timestamp: new Date().toISOString(),
+				chain: activeChain?.name ?? "unknown",
+				agent: agentDef.name,
+				model: modelStr,
+				promptChars: task.length,
+				outputChars: output.length,
+				elapsedMs: elapsed,
+			}, telemetryPath);
 
-			proc.on("error", (err) => {
-				clearInterval(timer);
-				resolve({
-					output: `Error spawning agent: ${err.message}`,
-					exitCode: 1,
-					elapsed: Date.now() - startTime,
-				});
-			});
-		});
+			return { output, exitCode: 0, elapsed };
+
+		} catch (err: any) {
+			const elapsed = Date.now() - startTime;
+			return {
+				output: `Error running agent ${agentDef.name}: ${err?.message ?? String(err)}`,
+				exitCode: 1,
+				elapsed,
+			};
+		}
 	}
 
 	// ── Run Chain (sequential pipeline) ─────────
