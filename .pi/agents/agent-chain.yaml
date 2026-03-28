@@ -1,152 +1,45 @@
-# ── Workflows ────────────────────────────────────────────────────────────────
-# Use /chain to pick a workflow at runtime.
-# optional: true steps are skipped when fast=true is passed to run_chain.
-
-# recon: single Robin call — explore, verify, generate SYSTEM-MAP.html
-recon:
-  description: "Deep codebase recon — explore, verify, generate SYSTEM-MAP.html"
-  steps:
-    - agent: robin
-      prompt: |
-        Deep recon for: $INPUT
-
-        Pass 1 — Explore: key files, entry points, data flow, dependencies, architecture.
-        Pass 2 — Validate: cross-check findings, fill gaps, map components and connections.
-        Pass 3 — Map: generate SYSTEM-MAP.html using Mermaid.js (CDN). Show components, data flow, external deps, entry points. Include legend.
-
-        Finish: update PROGRESS.md with findings.
-
-# plan: decompose and optionally review
-plan:
-  description: "Decompose task into a reviewed implementation plan"
-  steps:
-    - agent: robin
-      prompt: "Decompose this into atomic, testable tasks. Write to PLAN.md with task breakdown, outcomes, and test guidance:\n\n$INPUT"
-    - agent: law
-      optional: true
-      prompt: "Review PLAN.md. Are tasks atomic and testable? Outcomes measurable? Missing edge cases? Optimal order? Update PLAN.md with review notes. Append to PROGRESS.md.\n\nOriginal: $ORIGINAL"
-
-# build: plan → tests → implement (lean TDD)
-build:
-  description: "TDD build — plan, failing tests, implement. Review optional."
-  steps:
-    - agent: robin
-      prompt: "Decompose into atomic testable tasks. Write to PLAN.md:\n\n$INPUT"
-    - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: zoro
-      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: law
-      optional: true
-      prompt: "Code review: quality, patterns, correctness, test coverage. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-
-# frontend: plan → tests → UI build → review
-frontend:
-  description: "Frontend TDD — plan, tests, build UI, review"
-  steps:
-    - agent: robin
-      prompt: "Decompose frontend requirements into atomic, testable UI tasks. Write to PLAN.md:\n\n$INPUT"
-    - agent: usopp
-      prompt: "Write failing tests for every UI task — rendering, interactions, edge cases, a11y. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: sanji
-      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: law
-      optional: true
-      prompt: "Review frontend code: component patterns, maintainability. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-
-# research: multi-pass deep research
-research:
-  description: "Multi-pass research — Robin explores, Benn validates, Vegapunk synthesises"
-  steps:
-    - agent: robin
-      prompt: "Deep research on: $INPUT\n\nBreak into sub-questions. For each: investigate, gather evidence, cite files and patterns."
-    - agent: benn-beckman
-      prompt: "Stress-test this research. Check data, challenge assumptions, find gaps. Are conclusions supported?\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: vegapunk
-      optional: true
-      prompt: "Final synthesis. Sound analysis? Research online for additional context. Concrete next steps. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-
-# audit: security review
-audit:
-  description: "Security audit — Jinbe finds, Law validates, Robin mitigates"
-  steps:
-    - agent: jinbe
-      prompt: "Security audit of: $INPUT\n\nOWASP Top 10, input validation, secrets, access controls, deps. Rate each finding by severity."
-    - agent: law
-      prompt: "Review findings. Valid? Anything missed? Prioritize.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: robin
-      prompt: "Research mitigations for each finding. Actionable remediation with code examples. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-
-# autoresearch: single-shot type-error fix loop (pi-builder)
-autoresearch:
-  description: "Fix TypeScript errors — read errors, fix one file, verify, commit or revert"
-  steps:
-    - agent: zoro
-      prompt: |
-        Autoresearch loop for pi-builder. Fix TypeScript type errors.
-
-        1. Run: bunx tsc 2>&1 | grep "error TS" | sed 's/(.*$//' | sort | uniq -c | sort -rn
-        2. Pick the file with the most errors.
-        3. Read the file and the errors carefully.
-        4. Make the minimal correct fix — no @ts-ignore, no `as any`.
-        5. Run: bunx tsc 2>&1 | grep "error TS" | wc -l
-        6. If errors decreased: git commit -m "fix: <description>"
-        7. If errors increased: git reset --soft HEAD~1 && git checkout <file>
-        8. Log result to results.tsv (tab-separated: commit, type_errors, target, status, description).
-        9. Repeat until errors reach 0 or you are interrupted.
-
-        Context: $INPUT
 
 # ── Harness Chains (generator-evaluator loops) ─────────────────────────────
-# These chains include a spec-planner step and a generator-evaluator loop.
-# The loop runs until the evaluator score >= pass_threshold or max_iterations reached.
+# The dispatcher conducts a structured interview before calling run_chain.
+# The full compiled spec flows in as $INPUT to the first step.
 
-# harness-build: full harness — spec expand → plan → TDD loop with evaluator
+# harness-build: full TDD harness with evaluator loop
 harness-build:
-  description: "Full harness — spec-planner expands prompt, Robin plans, then Zoro builds with evaluator loop until quality threshold met"
+  description: "Full harness — Robin plans, Usopp writes tests, Zoro builds with evaluator loop until score >= 7/10"
   steps:
-    - agent: spec-planner
-      role: planner
-      prompt: "$INPUT"
     - agent: robin
-      prompt: "Read the product spec above. Decompose into atomic testable tasks. Write PLAN.md with task breakdown, test guidance, and phase order:\n\n$INPUT\n\nSpec from planner:\n$INPUT"
+      prompt: "Read this product spec carefully. Decompose into atomic testable tasks. Write PLAN.md with task breakdown, test guidance, and phase order:\n\n$INPUT"
     - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation:\n\nSpec: $ORIGINAL\nPlan output: $INPUT"
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation:\n\nSpec: $ORIGINAL\nPlan: $INPUT"
     - generator: zoro
       evaluator: evaluator
-      generator_prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique (if any):\n$CRITIQUE"
-      evaluator_prompt: "Evaluate the implementation. Run tests. Check for stubs, missing features, code quality.\n\nOriginal spec: $ORIGINAL\nImplementation output: $INPUT"
+      generator_prompt: "Implement until all tests pass. Work one task at a time. Run full suite before finishing.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious evaluator critique (if any):\n$CRITIQUE"
+      evaluator_prompt: "Evaluate the implementation strictly. Run tests. Check for stubs, missing features, code quality issues.\n\nOriginal spec: $ORIGINAL\nImplementation output: $INPUT"
       max_iterations: 5
       pass_threshold: 7
 
-# harness-frontend: spec → plan → frontend build loop
+# harness-frontend: full frontend TDD harness with evaluator loop
 harness-frontend:
-  description: "Frontend harness — spec-planner expands, Robin plans, Sanji builds with evaluator loop"
+  description: "Frontend harness — Robin plans, Usopp writes tests, Sanji builds with evaluator loop"
   steps:
-    - agent: spec-planner
-      role: planner
-      prompt: "$INPUT"
     - agent: robin
-      prompt: "Read the product spec. Decompose frontend requirements into atomic testable UI tasks. Write PLAN.md:\n\n$INPUT"
+      prompt: "Read this product spec. Decompose frontend requirements into atomic testable UI tasks. Write PLAN.md:\n\n$INPUT"
     - agent: usopp
       prompt: "Write failing tests for every UI task — rendering, interactions, a11y, edge cases. All MUST FAIL:\n\nSpec: $ORIGINAL\nPlan: $INPUT"
     - generator: sanji
       evaluator: evaluator
-      generator_prompt: "Build the frontend until all tests pass. Follow the design language from the spec.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious critique:\n$CRITIQUE"
-      evaluator_prompt: "Evaluate frontend implementation. Check: tests pass, design language matches spec, no template defaults, all features implemented.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
+      generator_prompt: "Build the frontend until all tests pass. Follow the design language from the spec closely.\n\nSpec: $ORIGINAL\nTests and plan: $INPUT\n\nPrevious critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate frontend implementation. Check: tests pass, design matches spec intent, no template defaults, all features present.\n\nOriginal spec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 5
       pass_threshold: 7
 
-# harness-quick: spec → direct build loop (no TDD, faster)
+# harness-quick: no TDD, direct build-evaluate loop. Fastest.
 harness-quick:
-  description: "Quick harness — spec-planner then direct build-evaluate loop. No TDD step."
+  description: "Quick harness — direct build-evaluate loop, no TDD. Use when tests aren't the focus."
   steps:
-    - agent: spec-planner
-      role: planner
-      prompt: "$INPUT"
     - generator: zoro
       evaluator: evaluator
-      generator_prompt: "Build this product spec. Work through features systematically. Run any tests that exist.\n\nSpec: $INPUT\n\nPrevious critique:\n$CRITIQUE"
-      evaluator_prompt: "Evaluate implementation against the spec. Run tests. Score strictly.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
+      generator_prompt: "Build this product. Work through features systematically. Run any existing tests.\n\nSpec: $INPUT\n\nPrevious critique:\n$CRITIQUE"
+      evaluator_prompt: "Evaluate implementation against the spec. Run tests if they exist. Score strictly.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 4
       pass_threshold: 7
