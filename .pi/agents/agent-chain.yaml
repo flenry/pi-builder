@@ -1,9 +1,105 @@
+# ── Workflows ────────────────────────────────────────────────────────────────
+# Use /chain to pick a workflow at runtime.
+# optional: true steps are skipped when fast=true is passed to run_chain.
 
-# ── Harness Chains (generator-evaluator loops) ─────────────────────────────
-# The dispatcher conducts a structured interview before calling run_chain.
-# The full compiled spec flows in as $INPUT to the first step.
+# recon: single Robin call — explore, verify, generate SYSTEM-MAP.html
+recon:
+  description: "Deep codebase recon — explore, verify, generate SYSTEM-MAP.html"
+  steps:
+    - agent: robin
+      prompt: |
+        Deep recon for: $INPUT
 
-# harness-build: full TDD harness with evaluator loop
+        Pass 1 — Explore: key files, entry points, data flow, dependencies, architecture.
+        Pass 2 — Validate: cross-check findings, fill gaps, map components and connections.
+        Pass 3 — Map: generate SYSTEM-MAP.html using Mermaid.js (CDN). Show components, data flow, external deps, entry points. Include legend.
+
+        Finish: update PROGRESS.md with findings.
+
+# plan: decompose and optionally review
+plan:
+  description: "Decompose task into a reviewed implementation plan"
+  steps:
+    - agent: robin
+      prompt: "Decompose this into atomic, testable tasks. Write to PLAN.md with task breakdown, outcomes, and test guidance:\n\n$INPUT"
+    - agent: law
+      optional: true
+      prompt: "Review PLAN.md. Are tasks atomic and testable? Outcomes measurable? Missing edge cases? Optimal order? Update PLAN.md with review notes. Append to PROGRESS.md.\n\nOriginal: $ORIGINAL"
+
+# build: plan → tests → implement (lean TDD)
+build:
+  description: "TDD build — plan, failing tests, implement. Review optional."
+  steps:
+    - agent: robin
+      prompt: "Decompose into atomic testable tasks. Write to PLAN.md:\n\n$INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: zoro
+      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: law
+      optional: true
+      prompt: "Code review: quality, patterns, correctness, test coverage. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+
+# frontend: plan → tests → UI build → review
+frontend:
+  description: "Frontend TDD — plan, tests, build UI, review"
+  steps:
+    - agent: robin
+      prompt: "Decompose frontend requirements into atomic, testable UI tasks. Write to PLAN.md:\n\n$INPUT"
+    - agent: usopp
+      prompt: "Write failing tests for every UI task — rendering, interactions, edge cases, a11y. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: sanji
+      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: law
+      optional: true
+      prompt: "Review frontend code: component patterns, maintainability. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+
+# research: multi-pass deep research
+research:
+  description: "Multi-pass research — Robin explores, Benn validates, Vegapunk synthesises"
+  steps:
+    - agent: robin
+      prompt: "Deep research on: $INPUT\n\nBreak into sub-questions. For each: investigate, gather evidence, cite files and patterns."
+    - agent: benn-beckman
+      prompt: "Stress-test this research. Check data, challenge assumptions, find gaps. Are conclusions supported?\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: vegapunk
+      optional: true
+      prompt: "Final synthesis. Sound analysis? Research online for additional context. Concrete next steps. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+
+# audit: security review
+audit:
+  description: "Security audit — Jinbe finds, Law validates, Robin mitigates"
+  steps:
+    - agent: jinbe
+      prompt: "Security audit of: $INPUT\n\nOWASP Top 10, input validation, secrets, access controls, deps. Rate each finding by severity."
+    - agent: law
+      prompt: "Review findings. Valid? Anything missed? Prioritize.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+    - agent: robin
+      prompt: "Research mitigations for each finding. Actionable remediation with code examples. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
+
+# autoresearch: single-shot type-error fix loop (pi-builder)
+autoresearch:
+  description: "Fix TypeScript errors — read errors, fix one file, verify, commit or revert"
+  steps:
+    - agent: zoro
+      prompt: |
+        Autoresearch loop for pi-builder. Fix TypeScript type errors.
+
+        1. Run: bunx tsc 2>&1 | grep "error TS" | sed 's/(.*$//' | sort | uniq -c | sort -rn
+        2. Pick the file with the most errors.
+        3. Read the file and the errors carefully.
+        4. Make the minimal correct fix — no @ts-ignore, no `as any`.
+        5. Run: bunx tsc 2>&1 | grep "error TS" | wc -l
+        6. If errors decreased: git commit -m "fix: <description>"
+        7. If errors increased: git reset --soft HEAD~1 && git checkout <file>
+        8. Log result to results.tsv (tab-separated: commit, type_errors, target, status, description).
+        9. Repeat until errors reach 0 or you are interrupted.
+
+        Context: $INPUT
+
+# ── Harness Chains (generator-evaluator loops) ────────────────────────────
+# Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
+
 harness-build:
   description: "Full harness — Robin plans, Usopp writes tests, Zoro builds with evaluator loop until score >= 7/10"
   steps:
@@ -18,7 +114,6 @@ harness-build:
       max_iterations: 5
       pass_threshold: 7
 
-# harness-frontend: full frontend TDD harness with evaluator loop
 harness-frontend:
   description: "Frontend harness — Robin plans, Usopp writes tests, Sanji builds with evaluator loop"
   steps:
@@ -33,7 +128,6 @@ harness-frontend:
       max_iterations: 5
       pass_threshold: 7
 
-# harness-quick: no TDD, direct build-evaluate loop. Fastest.
 harness-quick:
   description: "Quick harness — direct build-evaluate loop, no TDD. Use when tests aren't the focus."
   steps:
@@ -43,3 +137,19 @@ harness-quick:
       evaluator_prompt: "Evaluate implementation against the spec. Run tests if they exist. Score strictly.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
       max_iterations: 4
       pass_threshold: 7
+
+# ── Board Chain ──────────────────────────────────────────────────────────
+# Robin briefs the board (Vegapunk + Law), each brings their specialist lens,
+# then Robin synthesises everything into a final PRD.
+
+board-prd:
+  description: "CEO-Board PRD — Robin researches, Vegapunk web-researches, Law analyses, Robin produces final PRD"
+  steps:
+    - agent: robin
+      prompt: "You are briefing your board on this topic. Research it thoroughly — read the codebase, understand the problem space, identify unknowns. Produce a structured brief covering: context, problem statement, key unknowns, and the questions you want the board to weigh in on.\n\nTopic: $INPUT"
+    - agent: vegapunk
+      prompt: "You are the board's research director. Robin has briefed you on this topic. Search the web for: current best practices, competing solutions, relevant research, industry standards, and any technical constraints Robin may have missed. Bring external knowledge and fresh perspective.\n\nRobin's brief: $INPUT\n\nOriginal topic: $ORIGINAL"
+    - agent: law
+      prompt: "You are the board's analytical strategist. You have Robin's research brief and Vegapunk's external research. Apply rigorous analytical thinking: challenge assumptions, identify risks, evaluate trade-offs, stress-test the approaches. Be blunt. Rate each option by feasibility, risk, and strategic fit.\n\nRobin's brief + Vegapunk's research: $INPUT\n\nOriginal topic: $ORIGINAL"
+    - agent: robin
+      prompt: "You are back as CEO. You've heard from your board: Vegapunk brought external research, Law provided analytical critique. Now synthesise everything into a final PRD (Product Requirements Document).\n\nPRD must include:\n1. Executive Summary (1 paragraph)\n2. Problem Statement\n3. Goals and Non-Goals\n4. User Stories (prioritised)\n5. Technical Approach (informed by board input)\n6. Risks and Mitigations (from Law's analysis)\n7. Open Questions\n8. Success Metrics\n9. Phase Breakdown (Phase 1 MVP → later phases)\n\nWrite to PRD.md.\n\nBoard findings: $INPUT\nOriginal topic: $ORIGINAL"
