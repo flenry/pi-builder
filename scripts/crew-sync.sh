@@ -6,7 +6,6 @@
 set -euo pipefail
 
 CREW="$HOME/code/crew"
-PI_BUILDER="$HOME/code/pi-builder"
 GLOBAL_AGENTS="$HOME/.pi/agent/agents"
 
 GREEN='\033[0;32m'
@@ -67,15 +66,12 @@ echo "Agents:"
 for src in "$CREW/agents/"*.md; do
   name=$(basename "$src")
   sync_file "$src" "$GLOBAL_AGENTS/straw-hats/$name"    "~/.pi/agent/agents/straw-hats/$name"
-  sync_file "$src" "$PI_BUILDER/.pi/agents/straw-hats/$name" "pi-builder/.pi/agents/straw-hats/$name"
 done
 
 echo ""
 echo "Workflows:"
 sync_file "$CREW/workflows/agent-chain.yaml" "$GLOBAL_AGENTS/agent-chain.yaml"          "~/.pi/agent/agents/agent-chain.yaml"
-sync_file "$CREW/workflows/agent-chain.yaml" "$PI_BUILDER/.pi/agents/agent-chain.yaml"  "pi-builder/.pi/agents/agent-chain.yaml"
 sync_file "$CREW/workflows/teams.yaml"       "$GLOBAL_AGENTS/teams.yaml"                "~/.pi/agent/agents/teams.yaml"
-sync_file "$CREW/workflows/teams.yaml"       "$PI_BUILDER/.pi/agents/teams.yaml"        "pi-builder/.pi/agents/teams.yaml"
 
 echo ""
 
@@ -91,14 +87,6 @@ else
     echo -e "${GREEN}✓ already in sync — nothing to do${RESET}"
   else
     echo -e "${GREEN}✓ synced $CHANGES file(s)${RESET}"
-
-    # Commit pi-builder changes if any
-    cd "$PI_BUILDER"
-    if ! git diff --quiet .pi/agents/; then
-      git add .pi/agents/
-      git commit -m "sync: crew agents + workflows from flenry/crew"
-      git push origin main
-      echo -e "${DIM}pi-builder pushed to GitHub${RESET}"
     fi
   fi
 fi
