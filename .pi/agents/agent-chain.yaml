@@ -77,26 +77,24 @@ harness-build:
   steps:
     - agent: robin
       prompt: |
-        You are starting a new project. Do this in order:
+        You are the research lead. Orient yourself, then brief the board.
 
-        1. Check if git is already initialised:
-           Run: ls .git 2>/dev/null && echo "exists" || echo "not found"
+        1. Read CLAUDE.md if it exists — understand the project context and conventions
+        2. Read any relevant existing files mentioned in the spec
+        3. Check git status: run `git status 2>/dev/null || echo "no git"`
+           - If no git: run `git init && git checkout -b main`
+           - If an origin URL is in the spec and no remote exists: `git remote add origin <URL>`
 
-        2. If NOT initialised:
-           - Run: git init && git checkout -b main
-           - Create a sensible .gitignore for the tech stack in this spec
-           - If an origin URL is in the spec, run: git remote add origin <URL>
-           - Otherwise note: "No origin URL — push manually when ready"
+        4. Research the problem space thoroughly:
+           - For a new feature: understand the existing codebase, where this fits, what it touches
+           - For a new project: understand the domain, constraints, and what needs to be built
 
-        3. Research the problem space: read any existing files, understand constraints, identify unknowns and risks.
-
-        4. Write a structured brief for the board covering:
-           - Context and problem statement
+        5. Write a structured board brief covering:
+           - Context (what exists, what's being added/built)
+           - Problem statement and goals
            - Proposed approach and tech stack
            - Key unknowns and risks
-           - Questions for Vegapunk (architecture/research) and Law (strategy/trade-offs)
-
-        5. Run: git add -A && git commit -m "chore: project init"
+           - Specific questions for Vegapunk (architecture/research) and Law (strategy/trade-offs)
 
         Spec: $INPUT
     - agent: vegapunk
@@ -104,7 +102,7 @@ harness-build:
     - agent: law
       prompt: "You are the board's analytical strategist. You have Robin's brief and Vegapunk's research. Analyse the proposed approach: challenge assumptions, identify risks, evaluate trade-offs, stress-test the plan. Rate feasibility and flag anything that would cause problems during implementation.\n\nBrief + research: $INPUT\n\nOriginal spec: $ORIGINAL"
     - agent: robin
-      prompt: "You've heard from your board. Vegapunk brought external research, Law provided analytical critique. Now synthesise everything into a final PLAN.md — atomic testable tasks, implementation order, test guidance, and phase breakdown. Address the risks Law flagged. Commit: git add PLAN.md && git commit -m \"plan: PLAN.md from board session\"\n\nBoard findings: $INPUT\nOriginal spec: $ORIGINAL"
+      prompt: "You've heard from your board. Vegapunk brought external research, Law provided analytical critique. Now synthesise everything into a final PLAN.md — atomic testable tasks, implementation order, test guidance, and phase breakdown. Address every risk Law flagged. Commit the plan: git add -A && git commit -m \"plan: board-reviewed PLAN.md\"\n\nBoard findings: $INPUT\nOriginal spec: $ORIGINAL"
     - agent: usopp
       prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases + error states. All MUST FAIL before implementation. Commit: git add -A && git commit -m \"test: failing tests for all tasks\"\n\nPlan: $INPUT\nOriginal spec: $ORIGINAL"
     - generator: zoro
@@ -115,27 +113,20 @@ harness-build:
       pass_threshold: 7
     - agent: brook
       prompt: |
-        The project build is complete. Write two files:
+        The build is complete. Update documentation to reflect the current state.
 
-        1. README.md — a proper project README:
-           - Project name and one-line description
-           - What it does
-           - Tech stack
-           - Prerequisites
-           - How to install (exact commands)
-           - How to run (dev and production)
-           - How to run tests
-           - Environment variables (if any)
-           - Project structure overview
-
-        2. CLAUDE.md — AI re-entry context:
-           - What this project is
+        1. CLAUDE.md (always) — read existing first, then surgically update:
+           - What this project is and what was just added/changed
            - Tech stack and conventions
            - Key files and their roles
            - How to run and test
-           - Current state and what's been built
+           - Current state
 
-        Commit: git add -A && git commit -m "docs: README.md and CLAUDE.md"
+        2. README.md — check if it exists:
+           - If NO README: write a full one (name, description, stack, install, run, test, env vars, structure)
+           - If README EXISTS: surgically update only the sections affected by this build. Preserve everything else.
+
+        3. Commit: git add -A && git commit -m "docs: update README and CLAUDE.md"
 
         Spec: $ORIGINAL
         Build output: $INPUT
