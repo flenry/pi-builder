@@ -16,34 +16,7 @@ recon:
 
         Finish: update PROGRESS.md with findings.
 
-# plan: decompose → board review → final plan
-plan:
-  description: "Planning — Robin decomposes, Vegapunk reviews architecture, Law reviews logic, Robin finalises PLAN.md"
-  steps:
-    - agent: robin
-      prompt: "Decompose this into atomic, testable tasks. Write PLAN.md with task breakdown, outcomes, and test guidance:\n\n$INPUT"
-    - agent: vegapunk
-      optional: true
-      prompt: "Review PLAN.md for architectural soundness. Is the approach correct? Research online if needed. Flag any technical risks or better alternatives.\n\nOriginal: $ORIGINAL\nPlan: $INPUT"
-    - agent: law
-      optional: true
-      prompt: "Review PLAN.md for logical completeness. Are tasks atomic and testable? Missing edge cases? Optimal order? Update PLAN.md with review notes.\n\nOriginal: $ORIGINAL\nReview: $INPUT"
-
-# build: lean TDD without harness loop
-build:
-  description: "Lean TDD — Robin plans, Usopp writes tests, Zoro implements, Law reviews"
-  steps:
-    - agent: robin
-      prompt: "Decompose into atomic testable tasks. Write to PLAN.md:\n\n$INPUT"
-    - agent: usopp
-      prompt: "Write failing tests for every task in PLAN.md. Happy paths + edge cases. All MUST FAIL:\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: zoro
-      prompt: "Implement until all tests pass. One task at a time. Run full suite before finishing.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-    - agent: law
-      optional: true
-      prompt: "Code review: quality, patterns, correctness, test coverage. Append to PROGRESS.md.\n\n$INPUT\n\nOriginal: $ORIGINAL"
-
-# research: multi-pass deep research
+# research: multi-pass deep research with validation
 research:
   description: "Multi-pass research — Robin explores, Benn validates, Vegapunk synthesises"
   steps:
@@ -73,15 +46,15 @@ board-prd:
     - agent: robin
       prompt: "You are briefing your board on this topic. Research it thoroughly — read the codebase, understand the problem space, identify unknowns. Produce a structured brief covering: context, problem statement, key unknowns, and the questions you want the board to weigh in on.\n\nTopic: $INPUT"
     - agent: vegapunk
-      prompt: "You are the board's research director. Robin has briefed you. Search the web for: current best practices, competing solutions, relevant research, industry standards, and anything Robin may have missed. Bring external knowledge and fresh perspective.\n\nRobin's brief: $INPUT\n\nOriginal topic: $ORIGINAL"
+      prompt: "You are the board's research director. Robin has briefed you. Search the web for: current best practices, competing solutions, relevant research, industry standards, and anything Robin may have missed.\n\nRobin's brief: $INPUT\n\nOriginal topic: $ORIGINAL"
     - agent: law
-      prompt: "You are the board's analytical strategist. Apply rigorous analytical thinking: challenge assumptions, identify risks, evaluate trade-offs, stress-test the approaches. Be blunt. Rate each option by feasibility, risk, and strategic fit.\n\nBrief + research: $INPUT\n\nOriginal topic: $ORIGINAL"
+      prompt: "You are the board's analytical strategist. Challenge assumptions, identify risks, evaluate trade-offs, stress-test the approaches. Rate each option by feasibility, risk, and strategic fit.\n\nBrief + research: $INPUT\n\nOriginal topic: $ORIGINAL"
     - agent: robin
       prompt: "Synthesise everything into a final PRD. Include: Executive Summary, Problem Statement, Goals and Non-Goals, User Stories (prioritised), Technical Approach, Risks and Mitigations, Open Questions, Success Metrics, Phase Breakdown. Write to PRD.md.\n\nBoard findings: $INPUT\nOriginal topic: $ORIGINAL"
 
-# autoresearch: autonomous loop — research a topic deeply and produce findings
+# autoresearch: autonomous multi-pass research loop
 autoresearch:
-  description: "Autonomous research loop — Robin researches a topic exhaustively across multiple passes until satisfied"
+  description: "Autonomous research loop — Robin researches exhaustively across multiple passes until topic is fully covered"
   steps:
     - agent: robin
       prompt: |
@@ -95,30 +68,10 @@ autoresearch:
 
         Write findings to RESEARCH.md. Update PROGRESS.md when done.
 
-# ts-fix: TypeScript error fix loop (pi-builder specific)
-ts-fix:
-  description: "TypeScript fix loop — reads errors, fixes one file at a time, commits or reverts"
-  steps:
-    - agent: zoro
-      prompt: |
-        Fix TypeScript type errors in this codebase.
-
-        1. Run: bunx tsc 2>&1 | grep "error TS" | sed 's/(.*$//' | sort | uniq -c | sort -rn
-        2. Pick the file with the most errors.
-        3. Read the file and errors carefully.
-        4. Make the minimal correct fix — no @ts-ignore, no `as any`.
-        5. Run: bunx tsc 2>&1 | grep "error TS" | wc -l
-        6. If errors decreased: git commit -m "fix: <description>"
-        7. If errors increased: git reset --soft HEAD~1 && git checkout <file>
-        8. Log to results.tsv (tab-separated: commit, type_errors, target, status, description).
-        9. Repeat until errors reach 0 or interrupted.
-
-        Context: $INPUT
-
 # ── Harness Chains ────────────────────────────────────────────────────────
 # Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
 
-# harness-build: full harness — plan reviewed by board, TDD, evaluator loop, Law final gate
+# harness-build: full harness with board plan review, TDD, evaluator loop, Law final gate
 harness-build:
   description: "Full harness — Robin plans, Vegapunk reviews architecture, Usopp tests, Zoro builds with evaluator loop, Law final gate"
   steps:
@@ -139,9 +92,9 @@ harness-build:
       optional: true
       prompt: "Final code review gate. The evaluator loop has passed. Do a surgical review: patterns, correctness, maintainability, test quality. Approve or flag blockers. Append to PROGRESS.md.\n\nSpec: $ORIGINAL\nImplementation: $INPUT"
 
-# harness-cr: change request — targeted change on existing codebase, no full planning
+# harness-cr: change request — targeted change on existing codebase
 harness-cr:
-  description: "Change request harness — implement a specific change with evaluator loop. No full planning pipeline."
+  description: "Change request — Robin scopes the change, Zoro implements with evaluator loop"
   steps:
     - agent: robin
       prompt: "Read CLAUDE.md and the relevant files. Understand the existing codebase context. Write a concise implementation plan for this change request — what to change, what to preserve, what tests to update:\n\n$INPUT"
