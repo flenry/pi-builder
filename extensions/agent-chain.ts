@@ -639,51 +639,7 @@ ${standardWorkflow}`;
 		}
 	}
 
-	// ── Card Rendering ──────────────────────────
-
-	function renderCard(state: StepState, colWidth: number, theme: any): string[] {
-		const w = colWidth - 2;
-		const truncate = (s: string, max: number) => s.length > max ? s.slice(0, max - 3) + "..." : s;
-
-		const statusColor = state.status === "pending" ? "dim"
-			: state.status === "running" ? "accent"
-			: state.status === "done" ? "success"
-			: state.status === "skipped" ? "muted"
-			: "error";
-		const statusIcon = state.status === "pending" ? "○"
-			: state.status === "running" ? "●"
-			: state.status === "done" ? "✓"
-			: state.status === "skipped" ? "⊘"
-			: "✗";
-
-		const name = displayName(state.agent) + (state.merged ? " ×" : "");
-		const nameStr = theme.fg("accent", theme.bold(truncate(name, w)));
-		const nameVisible = Math.min(name.length, w);
-
-		const statusStr = `${statusIcon} ${state.status}`;
-		const timeStr = state.status !== "pending" && state.status !== "skipped"
-			? ` ${Math.round(state.elapsed / 1000)}s` : "";
-		const statusLine = theme.fg(statusColor, statusStr + timeStr);
-		const statusVisible = statusStr.length + timeStr.length;
-
-		const workRaw = state.lastWork || "";
-		const workText = workRaw ? truncate(workRaw, Math.min(50, w - 1)) : "";
-		const workLine = workText ? theme.fg("muted", workText) : theme.fg("dim", "—");
-		const workVisible = workText ? workText.length : 1;
-
-		const top = "┌" + "─".repeat(w) + "┐";
-		const bot = "└" + "─".repeat(w) + "┘";
-		const border = (content: string, visLen: number) =>
-			theme.fg("dim", "│") + content + " ".repeat(Math.max(0, w - visLen)) + theme.fg("dim", "│");
-
-		return [
-			theme.fg("dim", top),
-			border(" " + nameStr, 1 + nameVisible),
-			border(" " + statusLine, 1 + statusVisible),
-			border(" " + workLine, 1 + workVisible),
-			theme.fg("dim", bot),
-		];
-	}
+	// ── Compact Progress Rendering ───────────────
 
 	function updateWidget() {
 		if (!widgetCtx) return;
@@ -698,30 +654,53 @@ ${standardWorkflow}`;
 						return text.render(width);
 					}
 
-					const arrowWidth = 5; // " ──▶ "
-					const cols = stepStates.length;
-					const totalArrowWidth = arrowWidth * (cols - 1);
-					const colWidth = Math.max(12, Math.floor((width - totalArrowWidth) / cols));
-					const arrowRow = 2; // middle of 5-line card (0-indexed)
+					// ── Line 1: chain name + step count ──
+					const done = stepStates.filter(s => s.status === "done" || s.status === "skipped").length;
+					const total = stepStates.length;
+					const running = stepStates.find(s => s.status === "running");
+					const hasError = stepStates.some(s => s.status === "error");
+					const chainStatus = hasError ? theme.fg("error", "✗ error")
+						: running ? theme.fg("accent", "● running")
+						: done === total ? theme.fg("success", "✓ done")
+						: theme.fg("dim", "○ waiting");
+					const line1 = theme.fg("accent", theme.bold(activeChain.name)) + "  " + chainStatus + theme.fg("dim", `  ${done}/${total}`);
 
-					const cards = stepStates.map(s => renderCard(s, colWidth, theme));
-					const cardHeight = cards[0].length;
-					const outputLines: string[] = [];
+					// ── Line 2: all steps as compact pills ──
+					const pills = stepStates.map(s => {
+						const icon = s.status === "pending" ? "○"
+							: s.status === "running" ? "●"
+							: s.status === "done" ? "✓"
+							: s.status === "skipped" ? "⊘"
+							: "✗";
+						const color = s.status === "pending" ? "dim"
+							: s.status === "running" ? "accent"
+							: s.status === "done" ? "success"
+							: s.status === "skipped" ? "muted"
+							: "error";
+						// Short name: first word only, or "X⟳Y" for loops
+						const shortName = s.agent.includes("⟳")
+							? s.agent.replace(/\s/g, "")
+							: s.agent.split(" ")[0];
+						const timeStr = (s.status === "done" || s.status === "running") && s.elapsed > 0
+							? `(${Math.round(s.elapsed / 1000)}s)` : "";
+						const scoreStr = s.score !== undefined ? ` ${s.score}/10` : "";
+						const iterStr = s.iteration !== undefined && s.status === "running" ? ` i${s.iteration}` : "";
+						const label = `${icon} ${shortName}${timeStr}${iterStr}${scoreStr}`;
+						return theme.fg(color, label);
+					});
+					const sep = theme.fg("dim", " · ");
+					const line2 = pills.join(sep);
 
-					for (let line = 0; line < cardHeight; line++) {
-						let row = cards[0][line];
-						for (let c = 1; c < cols; c++) {
-							if (line === arrowRow) {
-								row += theme.fg("dim", " ──▶ ");
-							} else {
-								row += " ".repeat(arrowWidth);
-							}
-							row += cards[c][line];
-						}
-						outputLines.push(row);
-					}
+					// ── Line 3: current agent's live output ──
+					const activeState = running ?? stepStates.filter(s => s.status === "done").pop();
+					const liveText = activeState?.lastWork ?? "";
+					const maxLen = width - 2;
+					const truncated = liveText.length > maxLen ? "…" + liveText.slice(-(maxLen - 1)) : liveText;
+					const line3 = truncated ? theme.fg("dim", truncated) : "";
 
-					text.setText(outputLines.join("\n"));
+					const lines = [line1, line2];
+					if (line3) lines.push(line3);
+					text.setText(lines.join("\n"));
 					return text.render(width);
 				},
 				invalidate() {
