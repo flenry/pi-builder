@@ -72,7 +72,7 @@ autoresearch:
 # Dispatcher interviews you before run_chain. Full spec flows in as $INPUT.
 
 # harness-build: board planning phase + TDD build + evaluator loop + Brook docs
-harness-build:
+build:
   description: "Full harness — board planning (Robin → Vegapunk → Law → Robin PLAN.md), Usopp tests, Zoro builds with evaluator loop, Brook writes README"
   steps:
     - agent: robin
@@ -188,7 +188,7 @@ harness-build:
         Build output: $INPUT
 
 # harness-cr: change request — new branch, implement with evaluator loop, push + PR
-harness-cr:
+cr:
   description: "Change request — Robin branches + scopes, Zoro implements with evaluator loop, Brook pushes and creates PR"
   steps:
     - agent: robin

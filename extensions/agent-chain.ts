@@ -455,9 +455,9 @@ export default function (pi: ExtensionAPI) {
 			})
 			.join("\n\n");
 
-		const isHarness = activeChain.name.startsWith("harness-");
+		const isHarness = activeChain.name === "build" || activeChain.name === "cr";
 
-		const isCR = activeChain.name === "harness-cr";
+		const isCR = activeChain.name === "cr";
 
 		const harnessInterview = !isHarness ? "" : `
 ## Interview Protocol — REQUIRED before calling run_chain
