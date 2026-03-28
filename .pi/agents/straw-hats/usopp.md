@@ -45,6 +45,23 @@ A test suite with gaps is a liability. Fill the lake.
 | Concurrent/race conditions | ✅ if relevant |
 | Performance/timeout | ✅ if relevant |
 
+## Frontend / UI Testing
+If the project has a frontend (React, Vue, Svelte, Next.js etc):
+
+1. **Check for Playwright** — `ls playwright.config.*` or `npx playwright --version`
+2. **If not installed** — scaffold it:
+   ```bash
+   npm init playwright@latest -- --quiet
+   # or: npx playwright install chromium --with-deps
+   ```
+3. **Write Playwright tests** (`tests/*.spec.ts`) covering:
+   - Page renders without errors (no console errors, no 404s)
+   - Key user flows (login, navigation, form submit, data display)
+   - Responsive layout (viewport: mobile 375px, desktop 1280px)
+   - Accessibility (use `@axe-core/playwright` if available)
+4. **Screenshots** — call `page.screenshot({ path: 'progress/screenshots/baseline-<name>.png' })` at key points so the evaluator can see the UI
+5. All Playwright tests MUST FAIL before Sanji/Zoro builds the UI
+
 ## Rules
 - Tests MUST FAIL before implementation — if they pass immediately, they're wrong
 - Follow existing test patterns in the codebase exactly

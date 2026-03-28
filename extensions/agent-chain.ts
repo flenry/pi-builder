@@ -32,6 +32,7 @@ import {
 	createReadOnlyTools,
 	readTool, bashTool, editTool, writeTool, grepTool, findTool, lsTool,
 } from "@mariozechner/pi-coding-agent";
+import { readFileSync as readFileSyncNode } from "fs";
 import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync } from "fs";
@@ -725,6 +726,7 @@ ${standardWorkflow}`;
 		task: string,
 		stepIndex: number,
 		ctx: any,
+		images?: Array<{ path: string }>,
 	): Promise<{ output: string; exitCode: number; elapsed: number }> {
 		const modelStr = agentDef.model
 			? agentDef.model
@@ -803,7 +805,19 @@ ${standardWorkflow}`;
 				}
 			});
 
-			await session.prompt(task);
+			// Attach screenshots if provided (visual evaluation)
+			const imagePayloads = (images ?? []).flatMap(img => {
+				try {
+					const data = readFileSyncNode(img.path);
+					const ext = img.path.split(".").pop()?.toLowerCase() ?? "png";
+					const mimeType = ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+						: ext === "webp" ? "image/webp"
+						: "image/png";
+					return [{ type: "image" as const, mimeType, data: data.toString("base64") }];
+				} catch { return []; }
+			});
+
+			await session.prompt(task, imagePayloads.length > 0 ? { images: imagePayloads as any } : undefined);
 			await session.agent.waitForIdle();
 
 			unsub();
@@ -865,6 +879,51 @@ ${standardWorkflow}`;
 		return null;
 	}
 
+	// ── Screenshot Capture ───────────────────────
+	/**
+	 * Tries to capture screenshots of the running app using Playwright CLI.
+	 * Detects the dev server URL from package.json scripts or common defaults.
+	 * Returns paths of saved screenshots, or [] if capture failed.
+	 */
+	async function captureScreenshots(cwd: string, screenshotDir: string, iter: number): Promise<string[]> {
+		try {
+			if (!existsSync(join(cwd, "package.json"))) return [];
+
+			// Check Playwright is available
+			const { execSync } = require("child_process");
+			try { execSync("npx playwright --version", { cwd, stdio: "pipe" }); }
+			catch { return []; }
+
+			mkdirSync(screenshotDir, { recursive: true });
+
+			// Detect dev server port from package.json or common defaults
+			const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf-8"));
+			const devScript = pkg.scripts?.dev ?? pkg.scripts?.start ?? "";
+			const portMatch = devScript.match(/--port[= ](\d+)|PORT=(\d+)|-p (\d+)/);
+			const port = portMatch ? (portMatch[1] ?? portMatch[2] ?? portMatch[3]) : "3000";
+			const baseUrl = `http://localhost:${port}`;
+
+			// Common routes to screenshot
+			const routes = ["/", "/dashboard", "/login", "/home"].slice(0, 3);
+			const saved: string[] = [];
+
+			for (const route of routes) {
+				const filename = join(screenshotDir, `iter${iter}-${route.replace(/\//g, "_") || "root"}.png`);
+				try {
+					execSync(
+						`npx playwright screenshot --browser chromium "${baseUrl}${route}" "${filename}"`,
+						{ cwd, stdio: "pipe", timeout: 10000 }
+					);
+					if (existsSync(filename)) saved.push(filename);
+				} catch {}
+			}
+
+			return saved;
+		} catch {
+			return [];
+		}
+	}
+
 	// ── Run Loop Step ────────────────────────────
 	/**
 	 * Generator-evaluator loop. The generator builds, the evaluator scores.
@@ -907,16 +966,27 @@ ${standardWorkflow}`;
 			if (genResult.exitCode !== 0) return genResult;
 			lastOutput = genResult.output;
 
+			state.lastWork = `Iteration ${iter}/${loop.maxIterations} — capturing screenshots...`;
+			updateWidget();
+
+			// Take screenshots before evaluation — save to progress/screenshots/
+			const screenshotDir = join(ctx.cwd, "progress", "screenshots");
+			const screenshots = await captureScreenshots(ctx.cwd, screenshotDir, iter);
+
 			state.lastWork = `Iteration ${iter}/${loop.maxIterations} — evaluating...`;
 			updateWidget();
 
-			// Build evaluator prompt
-			const evalPrompt = loop.evaluatorPrompt
+			// Build evaluator prompt — include screenshot context if captured
+			const screenshotNote = screenshots.length > 0
+				? `\n\nScreenshots captured: ${screenshots.length} page(s) at progress/screenshots/ — attached for visual review.`
+				: "\n\n(No screenshots captured — app may not be running or Playwright not installed)";
+
+			const evalPrompt = (loop.evaluatorPrompt + screenshotNote)
 				.replace(/\$INPUT/g, lastOutput)
 				.replace(/\$ORIGINAL/g, originalPrompt)
 				.replace(/\$ITERATION/g, String(iter));
 
-			const evalResult = await runAgent(evaluatorDef, evalPrompt, stepIndex, ctx);
+			const evalResult = await runAgent(evaluatorDef, evalPrompt, stepIndex, ctx, screenshots.map(p => ({ path: p })));
 			if (evalResult.exitCode !== 0) return evalResult;
 
 			const score = parseScore(evalResult.output);
