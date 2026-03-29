@@ -1072,7 +1072,6 @@ ${standardWorkflow}`;
 		});
 		updateWidget();
 
-		chainAborted = false;
 		let input = task;
 		const originalPrompt = task;
 
@@ -1188,6 +1187,14 @@ ${standardWorkflow}`;
 
 		async execute(_toolCallId, params, _signal, onUpdate, ctx) {
 			const { task, fast = false } = params as { task: string; fast?: boolean };
+
+			// Block execution if chain was stopped — tell the dispatcher clearly
+			if (chainAborted) {
+				return {
+					content: [{ type: "text", text: "⛔ Chain was stopped by user (/chain-stop). Do NOT retry. Tell the user the chain has been stopped and wait for new instructions." }],
+					details: { chain: activeChain?.name, task, status: "stopped" },
+				};
+			}
 
 			if (onUpdate) {
 				onUpdate({
@@ -1388,6 +1395,13 @@ ${standardWorkflow}`;
 	});
 
 	// ── System Prompt Override ───────────────────
+
+	// Reset abort flag when user sends a new message (so they can restart after /chain-stop)
+	pi.on("input", async (_event, _ctx) => {
+		if (chainAborted) {
+			chainAborted = false;
+		}
+	});
 
 	pi.on("before_agent_start", async (_event, _ctx) => {
 		if (!activeChain) return {};
