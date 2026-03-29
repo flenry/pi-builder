@@ -420,6 +420,13 @@ export default function (pi: ExtensionAPI) {
 	// Per-step state for the active chain
 	let stepStates: StepState[] = [];
 
+	// Kill switch
+	let chainAborted = false;
+	let activeAgentSession: any = null; // current running SDK session, for abort
+
+	// Per-agent timeout — default 45 min, configurable via PI_AGENT_TIMEOUT_MS env var
+	const AGENT_TIMEOUT_MS = parseInt(process.env.PI_AGENT_TIMEOUT_MS ?? "") || 45 * 60 * 1000;
+
 	// ── Step 3: Cached dispatcher system prompt ──
 	let cachedDispatcherPrompt: string | null = null;
 
@@ -792,9 +799,18 @@ ${standardWorkflow}`;
 				resourceLoader: loader,
 			});
 
-			// Timer for widget updates
+			// Track active session for kill switch
+			activeAgentSession = session;
+
+			// Timer for widget updates + timeout check
 			const timer = setInterval(() => {
 				state.elapsed = Date.now() - startTime;
+				// Timeout: abort if agent runs too long
+				if (Date.now() - startTime > AGENT_TIMEOUT_MS) {
+					state.lastWork = `⚠ Timeout after ${Math.round(AGENT_TIMEOUT_MS / 60000)}min — aborting`;
+					updateWidget();
+					session.abort().catch(() => {});
+				}
 				updateWidget();
 			}, 1000);
 
@@ -829,6 +845,7 @@ ${standardWorkflow}`;
 
 			unsub();
 			clearInterval(timer);
+			activeAgentSession = null;
 
 			const elapsed = Date.now() - startTime;
 			state.elapsed = elapsed;
@@ -1055,11 +1072,20 @@ ${standardWorkflow}`;
 		});
 		updateWidget();
 
+		chainAborted = false;
 		let input = task;
 		const originalPrompt = task;
 
 		for (let i = 0; i < effectiveSteps.length; i++) {
 			const step = effectiveSteps[i];
+
+			// Kill switch check
+			if (chainAborted) {
+				stepStates[i].status = "skipped";
+				stepStates[i].lastWork = "aborted";
+				updateWidget();
+				continue;
+			}
 
 			// Skip optional steps in fast mode
 			if (fast && step.optional) {
@@ -1240,6 +1266,24 @@ ${standardWorkflow}`;
 	});
 
 	// ── Commands ─────────────────────────────────
+
+	pi.registerCommand("chain-stop", {
+		description: "Stop the running chain immediately",
+		handler: async (_args, ctx) => {
+			if (!chainAborted) {
+				chainAborted = true;
+				// Abort the currently running agent session if one exists
+				if (activeAgentSession) {
+					try { await activeAgentSession.abort(); } catch {}
+					activeAgentSession = null;
+				}
+				ctx.ui.notify("⛔ Chain stopped — current agent aborted, remaining steps skipped", "warning");
+				updateWidget();
+			} else {
+				ctx.ui.notify("No chain is running", "info");
+			}
+		},
+	});
 
 	pi.registerCommand("chain", {
 		description: "Switch active chain",
