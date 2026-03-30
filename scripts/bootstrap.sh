@@ -78,18 +78,26 @@ else
   fi
 fi
 
-# ohara (private — installs directly to ~/.pi/agent/skills/ohara)
-OHARA_DIR=~/.pi/agent/skills/ohara
-if [[ -d "$OHARA_DIR" ]]; then
-  log "ohara already installed — pulling latest"
-  cd "$OHARA_DIR" && git pull --rebase origin main --quiet
+# ohara — clone to ~/code/ohara, then symlink to ~/.pi/agent/skills/ohara
+if [[ -d ~/code/ohara ]]; then
+  log "ohara already exists — pulling latest"
+  cd ~/code/ohara && git pull --rebase origin main --quiet
 else
-  info "Cloning ohara skill catalog..."
-  if git clone git@github.com:flenry/ohara.git "$OHARA_DIR" 2>/dev/null; then
-    log "ohara installed to ~/.pi/agent/skills/ohara"
+  info "Cloning ohara (private repo — requires SSH key)..."
+  if git clone git@github.com:flenry/ohara.git ~/code/ohara 2>/dev/null; then
+    log "ohara cloned to ~/code/ohara"
   else
-    warn "Could not clone ohara — skipping (requires SSH key)"
+    warn "Could not clone ohara — skipping (add SSH key and run: git clone git@github.com:flenry/ohara.git ~/code/ohara)"
   fi
+fi
+
+# Symlink ~/code/ohara → ~/.pi/agent/skills/ohara so pi discovers it
+if [[ -d ~/code/ohara ]] && [[ ! -e ~/.pi/agent/skills/ohara ]]; then
+  mkdir -p ~/.pi/agent/skills
+  ln -s ~/code/ohara ~/.pi/agent/skills/ohara
+  log "ohara symlinked: ~/.pi/agent/skills/ohara → ~/code/ohara"
+elif [[ -d ~/code/ohara ]]; then
+  log "ohara skill link already exists"
 fi
 
 # ── 4. Install pi-builder deps ────────────────────
