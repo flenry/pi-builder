@@ -5,7 +5,12 @@
 
 set -euo pipefail
 
-CREW="$HOME/code/crew"
+# Resolve crew repo — respect CODE_DIR or detect from script location
+# Script lives at <CODE_DIR>/pi-builder/scripts/crew-sync.sh
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PIBUILDER_DIR="$(dirname "$_SCRIPT_DIR")"
+CODE_DIR="${CODE_DIR:-$(dirname "$_PIBUILDER_DIR")}"
+CREW="${CODE_DIR}/crew"
 GLOBAL_AGENTS="$HOME/.pi/agent/agents"
 
 GREEN='\033[0;32m'

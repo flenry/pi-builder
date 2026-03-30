@@ -4,8 +4,8 @@
 # Usage:
 #   curl -s https://raw.githubusercontent.com/flenry/pi-builder/main/scripts/bootstrap.sh | bash
 # or:
-#   git clone https://github.com/flenry/pi-builder ~/code/pi-builder
-#   bash ~/code/pi-builder/scripts/bootstrap.sh
+#   git clone https://github.com/flenry/pi-builder $CODE_DIR/pi-builder
+#   bash $CODE_DIR/pi-builder/scripts/bootstrap.sh
 
 set -euo pipefail
 
@@ -27,6 +27,14 @@ echo ""
 echo -e "${BOLD}Pi Agentic Stack — Bootstrap${RESET}"
 echo -e "${DIM}Sets up pi, crew, ohara, agents, skills, and shell functions${RESET}"
 echo ""
+
+# ── Code directory ────────────────────────────────
+# Override with: CODE_DIR=~/projects bash bootstrap.sh
+CODE_DIR="${CODE_DIR:-$HOME/code}"
+echo -e "${BLUE}→${RESET} Code directory: ${BOLD}$CODE_DIR${RESET}"
+echo -e "  ${DIM}Override with: CODE_DIR=~/projects bash bootstrap.sh${RESET}"
+echo ""
+mkdir -p "$CODE_DIR"
 sep
 
 # ── 1. Check prerequisites ────────────────────────
@@ -54,49 +62,49 @@ fi
 sep
 info "Setting up repos..."
 
-mkdir -p ~/code
+mkdir -p "$CODE_DIR"
 
 # pi-builder (public)
-if [[ -d ~/code/pi-builder ]]; then
+if [[ -d $CODE_DIR/pi-builder ]]; then
   log "pi-builder already exists — pulling latest"
-  cd ~/code/pi-builder && git pull --rebase origin main --quiet
+  cd $CODE_DIR/pi-builder && git pull --rebase origin main --quiet
 else
-  git clone https://github.com/flenry/pi-builder.git ~/code/pi-builder
+  git clone https://github.com/flenry/pi-builder.git $CODE_DIR/pi-builder
   log "pi-builder cloned"
 fi
 
 # crew (private — SSH required)
-if [[ -d ~/code/crew ]]; then
+if [[ -d $CODE_DIR/crew ]]; then
   log "crew already exists — pulling latest"
-  cd ~/code/crew && git pull --rebase origin main --quiet
+  cd $CODE_DIR/crew && git pull --rebase origin main --quiet
 else
   info "Cloning crew (private repo — requires SSH key)..."
-  if git clone git@github.com:flenry/crew.git ~/code/crew 2>/dev/null; then
+  if git clone git@github.com:flenry/crew.git $CODE_DIR/crew 2>/dev/null; then
     log "crew cloned"
   else
-    warn "Could not clone crew — skipping (add SSH key and run: git clone git@github.com:flenry/crew.git ~/code/crew)"
+    warn "Could not clone crew — skipping (add SSH key and run: git clone git@github.com:flenry/crew.git $CODE_DIR/crew)"
   fi
 fi
 
-# ohara — clone to ~/code/ohara, then symlink to ~/.pi/agent/skills/ohara
-if [[ -d ~/code/ohara ]]; then
+# ohara — clone to $CODE_DIR/ohara, then symlink to ~/.pi/agent/skills/ohara
+if [[ -d $CODE_DIR/ohara ]]; then
   log "ohara already exists — pulling latest"
-  cd ~/code/ohara && git pull --rebase origin main --quiet
+  cd $CODE_DIR/ohara && git pull --rebase origin main --quiet
 else
   info "Cloning ohara (private repo — requires SSH key)..."
-  if git clone git@github.com:flenry/ohara.git ~/code/ohara 2>/dev/null; then
-    log "ohara cloned to ~/code/ohara"
+  if git clone git@github.com:flenry/ohara.git $CODE_DIR/ohara 2>/dev/null; then
+    log "ohara cloned to $CODE_DIR/ohara"
   else
-    warn "Could not clone ohara — skipping (add SSH key and run: git clone git@github.com:flenry/ohara.git ~/code/ohara)"
+    warn "Could not clone ohara — skipping (add SSH key and run: git clone git@github.com:flenry/ohara.git $CODE_DIR/ohara)"
   fi
 fi
 
-# Symlink ~/code/ohara → ~/.pi/agent/skills/ohara so pi discovers it
-if [[ -d ~/code/ohara ]] && [[ ! -e ~/.pi/agent/skills/ohara ]]; then
+# Symlink $CODE_DIR/ohara → ~/.pi/agent/skills/ohara so pi discovers it
+if [[ -d $CODE_DIR/ohara ]] && [[ ! -e ~/.pi/agent/skills/ohara ]]; then
   mkdir -p ~/.pi/agent/skills
-  ln -s ~/code/ohara ~/.pi/agent/skills/ohara
-  log "ohara symlinked: ~/.pi/agent/skills/ohara → ~/code/ohara"
-elif [[ -d ~/code/ohara ]]; then
+  ln -s $CODE_DIR/ohara ~/.pi/agent/skills/ohara
+  log "ohara symlinked: ~/.pi/agent/skills/ohara → $CODE_DIR/ohara"
+elif [[ -d $CODE_DIR/ohara ]]; then
   log "ohara skill link already exists"
 fi
 
@@ -104,13 +112,13 @@ fi
 sep
 info "Installing pi-builder dependencies..."
 if command -v bun >/dev/null 2>&1; then
-  cd ~/code/pi-builder && bun install --quiet
+  cd $CODE_DIR/pi-builder && bun install --quiet
   log "bun install done"
 elif command -v npm >/dev/null 2>&1; then
-  cd ~/code/pi-builder && npm install --quiet
+  cd $CODE_DIR/pi-builder && npm install --quiet
   log "npm install done"
 else
-  warn "Neither bun nor npm found — skipping (install deps manually in ~/code/pi-builder)"
+  warn "Neither bun nor npm found — skipping (install deps manually in $CODE_DIR/pi-builder)"
 fi
 
 # ── 5. Set up global agents ───────────────────────
@@ -118,17 +126,17 @@ sep
 info "Installing global agents..."
 mkdir -p ~/.pi/agent/agents/straw-hats
 
-if [[ -d ~/code/crew/agents ]]; then
-  cp ~/code/crew/agents/*.md ~/.pi/agent/agents/straw-hats/
-  cp ~/code/crew/workflows/agent-chain.yaml ~/.pi/agent/agents/
-  cp ~/code/crew/workflows/teams.yaml ~/.pi/agent/agents/
+if [[ -d $CODE_DIR/crew/agents ]]; then
+  cp $CODE_DIR/crew/agents/*.md ~/.pi/agent/agents/straw-hats/
+  cp $CODE_DIR/crew/workflows/agent-chain.yaml ~/.pi/agent/agents/
+  cp $CODE_DIR/crew/workflows/teams.yaml ~/.pi/agent/agents/
   log "Straw hat agents + chains installed ($(ls ~/.pi/agent/agents/straw-hats/*.md | wc -l | tr -d ' ') agents)"
 else
   # Fall back to pi-builder copies
-  if [[ -d ~/code/pi-builder/.pi/agents/straw-hats ]]; then
-    cp ~/code/pi-builder/.pi/agents/straw-hats/*.md ~/.pi/agent/agents/straw-hats/ 2>/dev/null || true
-    cp ~/code/pi-builder/.pi/agents/agent-chain.yaml ~/.pi/agent/agents/ 2>/dev/null || true
-    cp ~/code/pi-builder/.pi/agents/teams.yaml ~/.pi/agent/agents/ 2>/dev/null || true
+  if [[ -d $CODE_DIR/pi-builder/.pi/agents/straw-hats ]]; then
+    cp $CODE_DIR/pi-builder/.pi/agents/straw-hats/*.md ~/.pi/agent/agents/straw-hats/ 2>/dev/null || true
+    cp $CODE_DIR/pi-builder/.pi/agents/agent-chain.yaml ~/.pi/agent/agents/ 2>/dev/null || true
+    cp $CODE_DIR/pi-builder/.pi/agents/teams.yaml ~/.pi/agent/agents/ 2>/dev/null || true
     log "Agents installed from pi-builder (crew repo not available)"
   else
     warn "No agents found — skipping"
@@ -160,20 +168,20 @@ install_skill() {
 }
 
 # From pi-builder
-install_skill "seed" ~/code/pi-builder/.pi/skills/seed
-install_skill "paul" ~/code/pi-builder/.pi/skills/paul
+install_skill "seed" $CODE_DIR/pi-builder/.pi/skills/seed
+install_skill "paul" $CODE_DIR/pi-builder/.pi/skills/paul
 
 # crew skill
-if [[ -f ~/code/crew/SKILL.md ]]; then
+if [[ -f $CODE_DIR/crew/SKILL.md ]]; then
   mkdir -p ~/.pi/agent/skills/crew
-  cp ~/code/crew/SKILL.md ~/.pi/agent/skills/crew/
+  cp $CODE_DIR/crew/SKILL.md ~/.pi/agent/skills/crew/
   log "crew skill installed"
 fi
 
 # autoexperiment — bundled in pi-builder/skills/
 if [[ ! -d ~/.pi/agent/skills/autoexperiment ]]; then
-  if [[ -d ~/code/pi-builder/skills/autoexperiment ]]; then
-    cp -r ~/code/pi-builder/skills/autoexperiment ~/.pi/agent/skills/
+  if [[ -d $CODE_DIR/pi-builder/skills/autoexperiment ]]; then
+    cp -r $CODE_DIR/pi-builder/skills/autoexperiment ~/.pi/agent/skills/
     log "autoexperiment skill installed"
   else
     warn "autoexperiment skill not found in pi-builder/skills/"
@@ -196,8 +204,8 @@ fi
 
 # frontend-design — bundled in pi-builder/skills/
 if [[ ! -d ~/.pi/agent/skills/frontend-design ]]; then
-  if [[ -d ~/code/pi-builder/skills/frontend-design ]]; then
-    cp -r ~/code/pi-builder/skills/frontend-design ~/.pi/agent/skills/
+  if [[ -d $CODE_DIR/pi-builder/skills/frontend-design ]]; then
+    cp -r $CODE_DIR/pi-builder/skills/frontend-design ~/.pi/agent/skills/
     log "frontend-design skill installed"
   else
     warn "frontend-design skill not found in pi-builder/skills/"
@@ -211,9 +219,9 @@ sep
 info "Installing global extensions..."
 mkdir -p ~/.pi/agent/extensions
 
-if [[ -f ~/code/pi-builder/extensions/scheduler.ts ]]; then
+if [[ -f $CODE_DIR/pi-builder/extensions/scheduler.ts ]]; then
   sed '/import.*themeMap/d; /applyExtensionDefaults/d' \
-    ~/code/pi-builder/extensions/scheduler.ts \
+    $CODE_DIR/pi-builder/extensions/scheduler.ts \
     > ~/.pi/agent/extensions/scheduler.ts
   log "scheduler installed globally (~/.pi/agent/extensions/)"
 else
@@ -257,20 +265,18 @@ MARKER="# ── Pi Crew/Chain commands (universal) ─────────�
 if grep -q "$MARKER" "$ZSHRC" 2>/dev/null; then
   log "Shell functions already in ~/.zshrc"
 else
-  cat >> "$ZSHRC" << 'ZSHRC_EOF'
-
-# ── Pi Crew/Chain commands (universal) ────────────
-_PI_EXT="$HOME/code/pi-builder/extensions"
-
-pi-crew()     { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-team.ts"  -e "$_PI_EXT/theme-cycler.ts" "$@"; }
-pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }
-pi-full()     { PI_CHAIN=build                   pi-chain "$@"; }
-pi-cr()       { PI_CHAIN=cr                      pi-chain "$@"; }
-pi-research() { PI_CHAIN=research                pi-chain "$@"; }
-pi-security() { PI_CHAIN=audit                   pi-chain "$@"; }
-pi-prd()      { PI_CHAIN=board-prd               pi-chain "$@"; }
-crew-sync()   { bash "$HOME/code/pi-builder/scripts/crew-sync.sh" "$@"; }
-ZSHRC_EOF
+  # Use printf to write with CODE_DIR expanded
+  printf '\n# ── Pi Crew/Chain commands (universal) ────────────\n' >> "$ZSHRC"
+  printf '_PI_EXT="%s/pi-builder/extensions"\n' "$CODE_DIR" >> "$ZSHRC"
+  printf '\n' >> "$ZSHRC"
+  printf 'pi-crew()     { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-team.ts"  -e "$_PI_EXT/theme-cycler.ts" "$@"; }\n' >> "$ZSHRC"
+  printf 'pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }\n' >> "$ZSHRC"
+  printf 'pi-full()     { PI_CHAIN=build                   pi-chain "$@"; }\n' >> "$ZSHRC"
+  printf 'pi-cr()       { PI_CHAIN=cr                      pi-chain "$@"; }\n' >> "$ZSHRC"
+  printf 'pi-research() { PI_CHAIN=research                pi-chain "$@"; }\n' >> "$ZSHRC"
+  printf 'pi-security() { PI_CHAIN=audit                   pi-chain "$@"; }\n' >> "$ZSHRC"
+  printf 'pi-prd()      { PI_CHAIN=board-prd               pi-chain "$@"; }\n' >> "$ZSHRC"
+  printf 'crew-sync()   { bash "%s/pi-builder/scripts/crew-sync.sh" "$@"; }\n' "$CODE_DIR" >> "$ZSHRC"
   log "Shell functions added to ~/.zshrc"
 fi
 
@@ -301,7 +307,7 @@ echo -e "  pi-crew       Open crew dispatcher (Luffy routes tasks)"
 echo -e "  crew-sync     Sync agents + chains from crew repo"
 echo ""
 echo -e "  ${BOLD}Repos:${RESET}"
-echo -e "  ~/code/pi-builder   Extensions + launch scripts"
-echo -e "  ~/code/crew         Agents + workflows (source of truth)"
+echo -e "  $CODE_DIR/pi-builder   Extensions + launch scripts"
+echo -e "  $CODE_DIR/crew         Agents + workflows (source of truth)"
 echo -e "  ~/.pi/agent/skills  Installed skills (seed, paul, ohara, ...)"
 echo ""
