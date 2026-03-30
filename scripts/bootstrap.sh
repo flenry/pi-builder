@@ -162,14 +162,14 @@ if [[ -f ~/code/crew/SKILL.md ]]; then
   log "crew skill installed"
 fi
 
-# autoexperiment — download from GitHub if not present
+# autoexperiment — bundled in pi-builder/skills/
 if [[ ! -d ~/.pi/agent/skills/autoexperiment ]]; then
-  info "Downloading autoexperiment skill..."
-  mkdir -p ~/.pi/agent/skills/autoexperiment
-  curl -s "https://raw.githubusercontent.com/flenry/autoexperiment/main/SKILL.md" \
-    -o ~/.pi/agent/skills/autoexperiment/SKILL.md 2>/dev/null \
-    && log "autoexperiment skill installed" \
-    || warn "Could not download autoexperiment skill — check https://github.com/flenry/autoexperiment"
+  if [[ -d ~/code/pi-builder/skills/autoexperiment ]]; then
+    cp -r ~/code/pi-builder/skills/autoexperiment ~/.pi/agent/skills/
+    log "autoexperiment skill installed"
+  else
+    warn "autoexperiment skill not found in pi-builder/skills/"
+  fi
 else
   log "autoexperiment already installed"
 fi
@@ -186,13 +186,13 @@ else
   log "ui-ux-pro-max already installed"
 fi
 
-# frontend-design — note: from private openclaw repo
+# frontend-design — bundled in pi-builder/skills/
 if [[ ! -d ~/.pi/agent/skills/frontend-design ]]; then
-  if [[ -d ~/code/openclaw/skills/frontend-design ]]; then
-    cp -r ~/code/openclaw/skills/frontend-design ~/.pi/agent/skills/
+  if [[ -d ~/code/pi-builder/skills/frontend-design ]]; then
+    cp -r ~/code/pi-builder/skills/frontend-design ~/.pi/agent/skills/
     log "frontend-design skill installed"
   else
-    warn "frontend-design skill: requires ~/code/openclaw — clone separately if needed"
+    warn "frontend-design skill not found in pi-builder/skills/"
   fi
 else
   log "frontend-design already installed"
