@@ -76,3 +76,15 @@ See the command registry table in STACK.md.
 
 Fixes that use `// @ts-ignore` or cast to `any` → discard.
 A correct 1-line fix > a workaround 10-line fix.
+
+---
+
+## Projects built via pi crew pipeline
+
+| Project | Repo | Status | Notes |
+|---|---|---|---|
+| `polymarket-alpha` | `git@github.com:flenry/polymarket-alpha.git` | ✅ Phase 1 complete | 251 tests passing, pushed to main. See `~/code/polymarket-alpha/CLAUDE.md` for full context. |
+
+---
+
+Last updated: 2026-04-03
