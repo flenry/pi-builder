@@ -1,0 +1,65 @@
+[
+  {
+    "timestamp": "2026-04-03T11:27:44.509Z",
+    "chain": "board-prd",
+    "agent": "robin",
+    "model": "anthropic/claude-sonnet-4-6",
+    "promptChars": 1923,
+    "outputChars": 3331,
+    "elapsedMs": 513324
+  },
+  {
+    "timestamp": "2026-04-03T11:28:22.281Z",
+    "chain": "board-prd",
+    "agent": "vegapunk",
+    "model": "github-copilot/gemini-3.1-pro-preview",
+    "promptChars": 575,
+    "outputChars": 853,
+    "elapsedMs": 37770
+  },
+  {
+    "timestamp": "2026-04-03T11:30:16.043Z",
+    "chain": "board-prd",
+    "agent": "law",
+    "model": "github-copilot/gpt-5.4",
+    "promptChars": 2726,
+    "outputChars": 4496,
+    "elapsedMs": 113747
+  },
+  {
+    "timestamp": "2026-04-03T11:36:34.680Z",
+    "chain": "board-prd",
+    "agent": "robin",
+    "model": "anthropic/claude-sonnet-4-6",
+    "promptChars": 571,
+    "outputChars": 2634,
+    "elapsedMs": 378614
+  },
+  {
+    "timestamp": "2026-04-03T12:02:38.143Z",
+    "chain": "build",
+    "agent": "robin",
+    "model": "anthropic/claude-sonnet-4-6",
+    "promptChars": 568,
+    "outputChars": 3671,
+    "elapsedMs": 151387
+  },
+  {
+    "timestamp": "2026-04-03T12:02:48.070Z",
+    "chain": "build",
+    "agent": "vegapunk",
+    "model": "github-copilot/gemini-3.1-pro-preview",
+    "promptChars": 575,
+    "outputChars": 0,
+    "elapsedMs": 9921
+  },
+  {
+    "timestamp": "2026-04-03T12:05:27.724Z",
+    "chain": "build",
+    "agent": "law",
+    "model": "github-copilot/gpt-5.4",
+    "promptChars": 891,
+    "outputChars": 6650,
+    "elapsedMs": 159653
+  }
+]
