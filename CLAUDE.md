@@ -83,7 +83,7 @@ A correct 1-line fix > a workaround 10-line fix.
 
 | Project | Repo | Status | Notes |
 |---|---|---|---|
-| `polymarket-alpha` | `git@github.com:flenry/polymarket-alpha.git` | ✅ Phase 1 complete | 251 tests passing, pushed to main. See `~/code/polymarket-alpha/CLAUDE.md` for full context. |
+| `polymarket-alpha` | `git@github.com:flenry/polymarket-alpha.git` | ✅ Phase 1 complete | 256 tests passing, pushed to main. Drizzle migration chain complete (`0000` + `0002_partition_trades`), `db:migrate:partitions` fallback script added. See `~/code/polymarket-alpha/CLAUDE.md` for full context. |
 
 ---
 
