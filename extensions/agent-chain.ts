@@ -566,14 +566,31 @@ ${!isCR ? `**Important:** Always ask for a GitHub origin URL — "Do you have a 
 		const standardWorkflow = isHarness
 			? `## Your Workflow
 1. Conduct the interview (above) — gather everything the builders need
-2. Compile the spec
-3. Call run_chain with the full compiled spec
+2. Compile the spec and **show it to the user for confirmation**
+   Ask: "Here's what I'll hand to the chain — does this look right? Any corrections?"
+3. Wait for green light, then call run_chain with the confirmed spec
 4. Summarize the chain's output for the user`
 			: `## Your Workflow
 1. User gives you a task
-2. Optionally read relevant files to understand the scope
-3. Call run_chain with a clear task description (and fast: true for quick iterations)
-4. Summarize the chain's output for the user`;
+2. Read relevant files to understand the scope (CLAUDE.md, PLAN.md, STATUS.md, relevant source files)
+3. **Show a brief plan before doing anything** — tell the user:
+   - What you understood from their request (repeat it back in your own words)
+   - What the chain will do step by step
+   - What the output/deliverable will be
+   - Any assumptions you're making
+   Then ask: "Does this look right? Any corrections before I start?"
+4. **Wait for confirmation.** Do NOT call run_chain until the user confirms ("go", "yes", "looks good", "proceed", or similar).
+   - If they correct something: incorporate the correction, show the updated plan, ask again
+   - If they say go: call run_chain with the confirmed task description
+5. Summarize the chain's output for the user
+
+## Rules — READ CAREFULLY
+
+1. **ALWAYS show a plan and wait for confirmation before calling run_chain.** No exceptions.
+2. **NEVER call run_chain without a green light.** Even if the task seems obvious.
+3. **NEVER implement, code, test, or build anything yourself.** That's what the chain agents are for.
+4. Your other tools (read, bash, grep, etc.) are ONLY for understanding scope before the plan step.
+5. After the chain completes, summarize what each agent did and report the final result.`;
 
 		return `You are a pipeline dispatcher. Your ONLY job is to route tasks through the "${activeChain.name}" chain via the run_chain tool.${desc}
 ${harnessInterview}
@@ -585,14 +602,6 @@ ${steps}
 ## Agents in This Chain
 
 ${agentCatalog}
-
-## Rules — READ CAREFULLY
-
-1. **ALWAYS call run_chain for ANY task.** You are a dispatcher, not a doer.
-2. **NEVER implement, code, test, or build anything yourself.** That's what the chain agents are for.
-3. **NEVER skip the chain.** Even if the task seems simple, run it through the pipeline.
-4. Your other tools (read, bash, grep, etc.) are ONLY for pre-chain investigation if needed.
-5. After the chain completes, summarize what each agent did and report the final result.
 
 ## How run_chain Works
 - Pass a clear, specific task description to run_chain
@@ -1274,23 +1283,7 @@ ${standardWorkflow}`;
 
 	// ── Commands ─────────────────────────────────
 
-	pi.registerCommand("chain-stop", {
-		description: "Stop the running chain immediately",
-		handler: async (_args, ctx) => {
-			if (!chainAborted) {
-				chainAborted = true;
-				// Abort the currently running agent session if one exists
-				if (activeAgentSession) {
-					try { await activeAgentSession.abort(); } catch {}
-					activeAgentSession = null;
-				}
-				ctx.ui.notify("⛔ Chain stopped — current agent aborted, remaining steps skipped", "warning");
-				updateWidget();
-			} else {
-				ctx.ui.notify("No chain is running", "info");
-			}
-		},
-	});
+	// chain-stop removed — unreliable, replaced by plan-first confirmation flow
 
 	pi.registerCommand("chain", {
 		description: "Switch active chain",
