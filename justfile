@@ -142,8 +142,9 @@ sync:
     # crew skill copy (secondary)
     cp ~/code/crew/workflows/agent-chain.yaml ~/.pi/agent/skills/crew/workflows/agent-chain.yaml
     cp ~/code/crew/workflows/teams.yaml ~/.pi/agent/skills/crew/workflows/teams.yaml
-    # agent definitions
+    # agent definitions — copy to BOTH locations
     cp ~/code/crew/agents/*.md ~/.pi/agent/skills/crew/agents/
+    cp ~/code/crew/agents/*.md ~/.pi/agent/agents/straw-hats/
     echo "syncing ohara extensions..."
     # pi extensions — auto-load on every pi session
     cp ~/code/ohara/extensions/*.ts ~/.pi/agent/extensions/
