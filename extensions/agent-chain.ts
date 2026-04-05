@@ -1295,9 +1295,8 @@ ${standardWorkflow}`;
 			}
 
 			const options = chains.map(c => {
-				const steps = c.steps.map(s => displayName(stepLabel(s))).join(" → ");
 				const desc = c.description ? ` — ${c.description}` : "";
-				return `${c.name}${desc} (${steps})`;
+				return `${c.name}${desc}`;
 			});
 
 			const choice = await ctx.ui.select("Select Chain", options);
@@ -1324,12 +1323,9 @@ ${standardWorkflow}`;
 			}
 
 			const list = chains.map(c => {
-				const desc = c.description ? `  ${c.description}` : "";
-				const steps = c.steps.map((s, i) =>
-					`  ${i + 1}. ${displayName(stepLabel(s))}${s.optional ? " (optional)" : ""}${isLoop(s) ? ` [loop ≤${s.maxIterations} iters, threshold ${s.passThreshold}/10]` : ""}`
-				).join("\n");
-				return `${c.name}:${desc ? "\n" + desc : ""}\n${steps}`;
-			}).join("\n\n");
+				const desc = c.description ? ` — ${c.description}` : "";
+				return `${c.name}${desc}`;
+			}).join("\n");
 
 			ctx.ui.notify(list, "info");
 		},
