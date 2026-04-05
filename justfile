@@ -132,28 +132,19 @@ ext-project-context:
 # ── Straw Hat Crew ────────────────────────────────
 
 # Sync crew workflows + agents + ohara extensions to their runtime locations
-# Run this after editing ~/code/crew or ~/code/ohara — or it runs automatically before chain/crew
+# Run this after editing ~/code/crew or ~/code/ohara — or it runs automatically before chain
 sync:
     #!/usr/bin/env bash
     set -e
     echo "syncing crew..."
     # chain yaml — the ONE place agent-chain.ts actually reads from
     cp ~/code/crew/workflows/agent-chain.yaml ~/.pi/agent/agents/agent-chain.yaml
-    # crew skill copy (secondary)
-    cp ~/code/crew/workflows/agent-chain.yaml ~/.pi/agent/skills/crew/workflows/agent-chain.yaml
-    cp ~/code/crew/workflows/teams.yaml ~/.pi/agent/skills/crew/workflows/teams.yaml
-    # agent definitions — copy to BOTH locations
-    cp ~/code/crew/agents/*.md ~/.pi/agent/skills/crew/agents/
+    # agent definitions
     cp ~/code/crew/agents/*.md ~/.pi/agent/agents/straw-hats/
     echo "syncing ohara extensions..."
     # pi extensions — auto-load on every pi session
     cp ~/code/ohara/extensions/*.ts ~/.pi/agent/extensions/
     echo "✓ sync complete"
-    @just --list 2>/dev/null | grep "^chain\|^crew\|^research\|^security\|^quant" || true
-
-# Full crew dispatcher — Luffy routes to 12 specialists dynamically
-crew: sync
-    pi -e extensions/project-context.ts -e extensions/agent-team.ts -e extensions/theme-cycler.ts
 
 # Agent chain — sequential workflow pipelines (select with /chain)
 chain: sync
