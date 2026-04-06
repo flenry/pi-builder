@@ -168,8 +168,8 @@ install_skill() {
 }
 
 # From pi-builder
-install_skill "seed" $CODE_DIR/pi-builder/.pi/skills/seed
-install_skill "paul" $CODE_DIR/pi-builder/.pi/skills/paul
+install_skill "seed" $CODE_DIR/pi-builder/skills/seed
+install_skill "paul" $CODE_DIR/pi-builder/skills/paul
 
 # crew skill
 if [[ -f $CODE_DIR/crew/SKILL.md ]]; then
@@ -228,6 +228,44 @@ else
   warn "scheduler.ts not found — skipping"
 fi
 
+# ── 6c. Global CLAUDE.md ─────────────────────────
+sep
+info "Writing global preferences to ~/.pi/agent/CLAUDE.md..."
+
+if [[ -f ~/.pi/agent/CLAUDE.md ]]; then
+  log "~/.pi/agent/CLAUDE.md already exists — skipping (edit manually to update)"
+else
+  mkdir -p ~/.pi/agent
+  cat > ~/.pi/agent/CLAUDE.md << 'CLAUDE_EOF'
+# Global Preferences
+
+These apply to every project. Never deviate unless explicitly told otherwise.
+
+## Tooling
+- Package manager: pnpm — never npm or yarn
+- ORM: Drizzle — never Prisma
+- Testing: Vitest — never Jest (E2E: Playwright)
+- TypeScript: strict mode always
+- UI components: prefer shadcn/ui
+
+## Code Style
+- Commits: imperative mood, under 50 chars, no trailing period
+- File naming: kebab-case
+- Always dark mode in tools and generated UIs
+
+## Running Tests (always use RAM-safe flags)
+- Vitest: `npx vitest run --pool=forks --poolOptions.forks.maxForks=2`
+- Jest:   `npx jest --runInBand --forceExit`
+- pytest: `python -m pytest -x -q`
+- Never run bare `vitest`, `vitest watch`, or `jest` — they spawn unlimited workers
+
+## Always Do
+- Read CLAUDE.md at project root before starting any work
+- Check `progress/todo/` for existing tasks before creating new ones
+CLAUDE_EOF
+  log "~/.pi/agent/CLAUDE.md written"
+fi
+
 # ── 7. Pi settings ────────────────────────────────
 sep
 info "Configuring pi settings..."
@@ -269,14 +307,8 @@ else
   printf '\n# ── Pi Crew/Chain commands (universal) ────────────\n' >> "$ZSHRC"
   printf '_PI_EXT="%s/pi-builder/extensions"\n' "$CODE_DIR" >> "$ZSHRC"
   printf '\n' >> "$ZSHRC"
-  printf 'pi-crew()     { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-team.ts"  -e "$_PI_EXT/theme-cycler.ts" "$@"; }\n' >> "$ZSHRC"
   printf 'pi-chain()    { pi -e "$_PI_EXT/project-context.ts" -e "$_PI_EXT/agent-chain.ts" -e "$_PI_EXT/theme-cycler.ts" "$@"; }\n' >> "$ZSHRC"
-  printf 'pi-full()     { PI_CHAIN=build                   pi-chain "$@"; }\n' >> "$ZSHRC"
-  printf 'pi-cr()       { PI_CHAIN=cr                      pi-chain "$@"; }\n' >> "$ZSHRC"
-  printf 'pi-research() { PI_CHAIN=research                pi-chain "$@"; }\n' >> "$ZSHRC"
-  printf 'pi-security() { PI_CHAIN=audit                   pi-chain "$@"; }\n' >> "$ZSHRC"
-  printf 'pi-prd()      { PI_CHAIN=board-prd               pi-chain "$@"; }\n' >> "$ZSHRC"
-  printf 'crew-sync()   { bash "%s/pi-builder/scripts/crew-sync.sh" "$@"; }\n' "$CODE_DIR" >> "$ZSHRC"
+  printf 'pi-sync()     { cd "%s/pi-builder" && just sync; }\n' "$CODE_DIR" >> "$ZSHRC"
   log "Shell functions added to ~/.zshrc"
 fi
 
@@ -303,8 +335,8 @@ echo -e "  ${DIM}Open a new terminal (or run: source ~/.zshrc)${RESET}"
 echo ""
 echo -e "  ${BOLD}Commands:${RESET}"
 echo -e "  pi-chain      Open chain runner (workflow guide on startup)"
-echo -e "  pi-crew       Open crew dispatcher (Luffy routes tasks)"
-echo -e "  crew-sync     Sync agents + chains from crew repo"
+echo -e "  pi-chain      Open chain runner from any project directory"
+echo -e "  pi-sync       Sync crew + ohara extensions to global ~/.pi/agent/"
 echo ""
 echo -e "  ${BOLD}Repos:${RESET}"
 echo -e "  $CODE_DIR/pi-builder   Extensions + launch scripts"
