@@ -8,6 +8,22 @@ The extension library and launcher for the agentic workflow stack — built on [
 
 Everything you need to get the full stack running on a fresh machine.
 
+### One-command setup
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/flenry/pi-builder/main/scripts/bootstrap.sh)
+```
+
+This installs pi, clones all repos, deploys agents + chains + skills + extensions, writes `~/.pi/agent/CLAUDE.md` with global prefs, and adds shell functions to `~/.zshrc`.
+
+After running, add your API keys to `~/.zshrc` and you're done.
+
+> **Requires:** Node.js ≥ 24, SSH key for GitHub (for private `crew` + `ohara` repos)
+
+---
+
+### Manual setup (step by step)
+
 ### 1. Prerequisites
 
 | Tool | Purpose | Install |
